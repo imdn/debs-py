@@ -7,8 +7,8 @@ import debs.observations as myobs
 from scipy.cluster.vq import kmeans
 
 metadata_file = "/home/imad/workspace/agt-challenge/test_data/18.04.2017.1molding_machine_308dp/molding_machine_308dp.metadata.nt"
-#observations_file = "/home/imad/workspace/agt-challenge/test_data/18.04.2017.1molding_machine_308dp/molding_machine_308dp.nt"
-observations_file = "/home/imad/workspace/agt-challenge/test_data/18.04.2017.1molding_machine_308dp/mini.nt"
+observations_file = "/home/imad/workspace/agt-challenge/test_data/18.04.2017.1molding_machine_308dp/molding_machine_308dp.nt"
+#observations_file = "/home/imad/workspace/agt-challenge/test_data/18.04.2017.1molding_machine_308dp/mini.nt"
 
 #file = "/home/imad/workspace/agt-challenge/test_data/10machines1000dp_static/10molding_machine_1000dp.metadata.nt"
 machines = dict()
@@ -63,14 +63,16 @@ def process_metadata(a, b, c):
         # ProbabilityThreshold_<id> - isThresholdForProperty -> <property_id>
         models[md_cur_model].properties[obj].probThreshold = md_cur_prob_threshold
         
-# Current values while parsing
+# Track latest values while parsing
+cur_machine = None
 cur_obs_group = None
 cur_observation_id = None
 cur_output_id = None
 cur_value_id = None
+skip_observation = False
 
 def process_observations(a, b, c):
-    global cur_obs_group, cur_observation_id, cur_output_id, cur_value_id
+    global cur_machine, cur_obs_group, cur_observation_id, cur_output_id, cur_value_id, skip_observation
     ns_sub, sub = a
     ns_pred, pred = b
     ns_obj, obj = c
@@ -92,6 +94,7 @@ def process_observations(a, b, c):
 
     elif pred == 'machine':
         obs_groups[sub].machineId = obj
+        cur_machine = obj
     
     elif pred == 'contains':
         cur_observation_id = obj
@@ -108,12 +111,19 @@ def process_observations(a, b, c):
         obs_groups[sub].cycle = obj
     
     elif pred == 'observedProperty':
-        obs_groups[cur_obs_group].observations[cur_observation_id].observedProperty = obj
+        m_model = models[machines[cur_machine].model]
+        # Only track stateful properties, else omit observing
+        if not m_model.isStatefulProperty(obj):
+            skip_observation = True
+            del obs_groups[cur_obs_group].observations[cur_observation_id]
+        else:
+            skip_observation = False
+            obs_groups[cur_obs_group].observations[cur_observation_id].observedProperty = obj
     
     elif pred == 'valueLiteral':
         if sub.find('Timestamp') >= 0 and obs_groups[cur_obs_group].timeStampId == sub :
             obs_groups[cur_obs_group].timeStampValue = obj
-        elif sub.find('Value') >= 0:
+        elif sub.find('Value') >= 0 and not skip_observation:
             obs_groups[cur_obs_group].observations[cur_observation_id].outputValue = obj
 
 def run():

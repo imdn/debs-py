@@ -14,6 +14,11 @@ class MachineModel(object):
             return True
         return False
 
+    def isStatefulProperty(self, propId):
+        if propId in self.properties:
+            return self.properties[propId].stateful
+        return None
+
 # Property of MachineModel
 class Property(object):
     def __init__(self, id):
