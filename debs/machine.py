@@ -20,6 +20,7 @@ class Property(object):
         self.propId = id
         self.probThreshold = None
         self.numClusters = None # K
+        self.stateful = False
         
 class Machine(object):
     def __init__(self, id):

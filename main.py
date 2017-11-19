@@ -7,8 +7,8 @@ import debs.observations as myobs
 from scipy.cluster.vq import kmeans
 
 metadata_file = "/home/imad/workspace/agt-challenge/test_data/18.04.2017.1molding_machine_308dp/molding_machine_308dp.metadata.nt"
-observations_file = "/home/imad/workspace/agt-challenge/test_data/18.04.2017.1molding_machine_308dp/molding_machine_308dp.nt"
-#observations_file = "/home/imad/workspace/agt-challenge/test_data/18.04.2017.1molding_machine_308dp/mini.nt"
+#observations_file = "/home/imad/workspace/agt-challenge/test_data/18.04.2017.1molding_machine_308dp/molding_machine_308dp.nt"
+observations_file = "/home/imad/workspace/agt-challenge/test_data/18.04.2017.1molding_machine_308dp/mini.nt"
 
 #file = "/home/imad/workspace/agt-challenge/test_data/10machines1000dp_static/10molding_machine_1000dp.metadata.nt"
 machines = dict()
@@ -16,11 +16,14 @@ models = dict()
 thresholds = dict()
 obs_groups = dict()
 
-# Mappings for metadata
-map_prop2model = dict()
-map_threshold2prop = dict()
+# Variables to keep track of current values
+md_cur_model = None
+md_cur_machine = None
+md_cur_property = None
+md_cur_prob_threshold = None
 
 def process_metadata(a, b, c):
+    global md_cur_model, md_cur_machine, md_cur_property, md_cur_prob_threshold
     ns_sub, sub = a
     ns_pred, pred = b
     ns_obj, obj = c
@@ -31,42 +34,36 @@ def process_metadata(a, b, c):
         if obj == "MoldingMachine":
             # machine - type -> moldingMachine
             machines[sub] = mc.Machine(sub)
+            md_cur_machine = sub
+        elif obj == "StatefulProperty":
+            models[md_cur_model].properties[sub].stateful = True
     
     elif pred == "hasModel":
         # machine - hasModel -> machineModel
         machines[sub].model = obj
+        md_cur_model = obj
         if not obj in models:
             models[obj] = mc.MachineModel()
 
     elif pred == "hasProperty":
         # machineModel - hasProperty -> property
-        propObj = mc.Property(obj)
-        models[sub].properties[obj] = propObj
-        map_prop2model[obj] = sub
+        models[sub].properties[obj] = mc.Property(obj)
+        md_cur_property = obj
     
     elif pred == "hasNumberOfClusters":
         # prop - hasNumberOfClusters -> numClusters
-        model_name = map_prop2model[sub]
-        prop = models[model_name].properties[sub]
-        prop.numClusters = obj
-        models[model_name].properties[sub] = prop
+        models[md_cur_model].properties[sub].numClusters = obj
     
     elif pred == "valueLiteral":
         if sub.find('ProbabilityThreshold') >= 0:
             # ProbabilityThreshold_<id> - valueLiteral -> <value>
-            thresholds[sub] = obj
+            md_cur_prob_threshold = obj
 
     elif pred == "isThresholdForProperty":
         # ProbabilityThreshold_<id> - isThresholdForProperty -> <property_id>
-        model_name = map_prop2model[obj]
-        prop = models[model_name].properties[obj]
-        prop.probThreshold = thresholds[sub]
-        models[model_name].properties[obj] = prop
+        models[md_cur_model].properties[obj].probThreshold = md_cur_prob_threshold
         
-# Mappings for observations
-
-map_obsId2outId = dict()
-map_outId2valId = dict()
+# Current values while parsing
 cur_obs_group = None
 cur_observation_id = None
 cur_output_id = None
@@ -125,7 +122,7 @@ def run():
         for line in fp:
             count +=1
             sub, pred, obj = parser.parse_triple(line.strip('\n'))
-            #process_metadata(sub, pred, obj)
+            process_metadata(sub, pred, obj)
 
             #if count > 10:
             #    break
@@ -138,6 +135,12 @@ def run():
 
 
 run()
+
+# Metadata values
+for m in models:
+    mod = models[m]
+    mod.print_info()
+    
 
 #for group in obs_groups:
 #    og = obs_groups[group]
