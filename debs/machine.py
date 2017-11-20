@@ -9,11 +9,6 @@ class MachineModel(object):
             p = self.properties[prop]
             print(f"Property {count} - ID: {p.propId}; pThreshold: {p.probThreshold}; #clusters - {p.numClusters}")
 
-    def hasProperty(self, propId):
-        if propId in self.properties():
-            return True
-        return False
-
     def isStatefulProperty(self, propId):
         if propId in self.properties:
             return self.properties[propId].stateful
@@ -26,7 +21,7 @@ class Property(object):
         self.probThreshold = None
         self.numClusters = None # K
         self.stateful = False
-        
+           
 class Machine(object):
     def __init__(self, id):
         self.id = id

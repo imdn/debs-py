@@ -7,6 +7,16 @@ class ObservationGroup(object):
         self.cycle = None
         self.observations = dict()
 
+    def getObservations(self):
+        """
+        Return list of observations in the form of (TimestampId, ObservedProperty, Value)
+        """
+        ob_list = []
+        for oid in self.observations:
+            observation = self.observations[oid]
+            ob_list.append((self.timeStampId, observation.observedProperty, observation.outputValue))
+        return ob_list
+    
     def print_info(self):
         print(f"ID: {self.groupId}; Machine: {self.machineId}; Time: {self.timeStampValue}; Cycle: {self.cycle}")
         for o in self.observations:
