@@ -5,6 +5,7 @@ from . import kmeans
 from collections import defaultdict
 
 log_level=logging.DEBUG
+#log_level=logging.WARNING
 logging.basicConfig(filename='dispatch.log', filemode='w', level=log_level, format='Dispatcher.py: %(message)s')
 
 # Print Info messages to the console
@@ -49,14 +50,17 @@ class Dispatcher(object):
             observationsForProp = adata[adata[:,1] == dim]
             observedValues = observationsForProp[:,2].astype(float)
             numClusters = metadata[dim].numClusters
-            logging.debug(f"\nNow clustering observations for property {dim} with Timestamp:{self.events[obs_group_id].timeStampId}...")
+            ts_id = self.events[obs_group_id].timeStampId
+            logging.debug(f"\nNow clustering observations for property {dim} with Timestamp:{ts_id}...")
             centroids, labels = self.clusterValues(machine_id, dim, observedValues, numClusters)
             logging.debug("Now building Markov model ...")
             trans_mat =self.buildTransitionProbabilityMatrix(labels, len(centroids))
             thresholdProb = metadata[dim].probThreshold
             logging.debug (f"Transition Matrix\n{trans_mat}")
             logging.debug("Now detecting anomalies ...")
-            self.detectAnomalies(labels, trans_mat, thresholdProb)
+            has_anomalies, obs_probability = self.detectAnomalies(labels, trans_mat, thresholdProb)
+            if has_anomalies:
+                logging.warning(f"Anomalies observed in {machine_id:12}\tProperty: {dim:7}\tTimestamp: {ts_id:16}\tP(observed): {obs_probability:22} vs. P(threshold): {thresholdProb}")
 
     
     def clusterValues(self, machine_id, dim, values, maxClusters):
@@ -153,23 +157,27 @@ class Dispatcher(object):
             cur_state = labels[i-1]
             next_state = labels[i]
             prob_cur_chain = prob_cur_chain * trans_mat[cur_state, next_state]
+            logging.debug(f"State: {cur_state}->{next_state} ; Probability: {trans_mat[cur_state, next_state]}")
 
         logging.debug(f"Observed probability for initial sequence: {prob_cur_chain}")
         if prob_cur_chain < threshold:
-            logging.warning(f"Anomaly detected - {labels}\nThreshold: {threshold}\tComputed:{prob_cur_chain}")
+            return (True, prob_cur_chain)
             
         while end <= max_possible_transitions:
             # OPTIMIZATION: Instead of sequence of multiplications, 
             # P (next_chain) = P(cur_chain) / P(outgoing_transition) * P(next_transition)
             prob_prev_transition = trans_mat[labels[start-1], labels[start]]
             prob_next_transition = trans_mat[labels[end-1], labels[end]]
+            logging.debug(f"P(previous[{labels[start-1]}->{labels[start]}]): {trans_mat[labels[start-1], labels[start]]}; P(next[{labels[end-1]}->{labels[end]}]): {trans_mat[labels[end-1], labels[end]]}")
             prob_cur_chain = prob_cur_chain / prob_prev_transition * prob_next_transition
             start += 1
             end = start + N
             logging.debug(f"Observed probability for next sequence: {prob_cur_chain}")
             if prob_cur_chain < threshold:
-                logging.warning(f"Anomaly detected - {labels}\nThreshold: {threshold}\tComputed:{prob_cur_chain}")
+                logging.debug(f"Anomaly detected - {labels}\nThreshold: {threshold}\tComputed:{prob_cur_chain}")
+                return (True, prob_cur_chain)
 
+        return (False, prob_cur_chain)
             
 
     def print_info(self):
