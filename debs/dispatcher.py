@@ -1,7 +1,16 @@
-from . import kmeans
 import numpy as np
 import sys
+import logging
+from . import kmeans
 from collections import defaultdict
+
+log_level=logging.DEBUG
+logging.basicConfig(filename='dispatch.log', filemode='w', level=log_level, format='Dispatcher.py: %(message)s')
+
+# Print Info messages to the console
+consoleHandler = logging.StreamHandler()
+consoleHandler.setLevel(logging.INFO)
+logging.getLogger().addHandler(consoleHandler)
 
 
 class Dispatcher(object):
@@ -9,19 +18,22 @@ class Dispatcher(object):
         self.WINDOW_SIZE = window_size
         self.KMEANS_MAX_ITERATIONS = max_iter
         self.NUM_STATE_TRANSITIONS = num_transitions
-        self.machinesMap = dict()
+        self.machinesMap = defaultdict(list)
         self.events = event_map
         # Keep track of prev cluster centroids/machine and outgoing value from current window
         self.prevClusteringResult = defaultdict(dict)
-        #self.prevValuesForProp = defaultdict(dict) 
+        self.processedEvents = defaultdict(list)
 
     def processEvent(self, machine_id, obs_group_id, metadata, force_run=False):
-        if machine_id not in self.machinesMap:
-            self.machinesMap[machine_id] = []
         if len(self.machinesMap[machine_id]) == self.WINDOW_SIZE or force_run:
             # Window size for machine is full. Onward to clustering
-            print ("Running clustering")
+            logging.info (f"Processing Machine with ID: {machine_id}; Observation Group: {obs_group_id}")
             self.processMachineStream(machine_id, obs_group_id, metadata)
+            self.processedEvents[machine_id].append(obs_group_id)
+            # After run is over, remove the first observation group for the particular machine
+            logging.debug (f"Removing observation group from window: {self.machinesMap[machine_id][0]}")
+            del self.machinesMap[machine_id][0]
+            logging.info (f"Finished processing Machine with ID: {machine_id}; Observation Group: {obs_group_id}")
         self.machinesMap[machine_id].append(obs_group_id)
 
     def processMachineStream(self, machine_id, obs_group_id, metadata):
@@ -37,16 +49,20 @@ class Dispatcher(object):
             observationsForProp = adata[adata[:,1] == dim]
             observedValues = observationsForProp[:,2].astype(float)
             numClusters = metadata[dim].numClusters
+            logging.debug(f"\nNow clustering observations for property {dim} with Timestamp:{self.events[obs_group_id].timeStampId}...")
             centroids, labels = self.clusterValues(machine_id, dim, observedValues, numClusters)
+            logging.debug("Now building Markov model ...")
             trans_mat =self.buildTransitionProbabilityMatrix(labels, len(centroids))
             thresholdProb = metadata[dim].probThreshold
-            print (f"Transition Matrix\n{trans_mat}")
+            logging.debug (f"Transition Matrix\n{trans_mat}")
+            logging.debug("Now detecting anomalies ...")
             self.detectAnomalies(labels, trans_mat, thresholdProb)
 
     
     def clusterValues(self, machine_id, dim, values, maxClusters):
         compute_kmeans = True
-        print (f"\nObserved Values - {values}")
+        logging.debug (f"\nObserved Values - {values}")
+        logging.debug (f"Max clusters allowed - {maxClusters}")
         if dim not in self.prevClusteringResult[machine_id]:
             # Seed initial values with distinct observations observation values
             # NOTE: This could be inefficient if values is a large array
@@ -54,7 +70,7 @@ class Dispatcher(object):
             limit = maxClusters if maxClusters <= len(unique_values) else len(unique_values)
             # np.unique is unordered. Use indices to get ordered unique values
             seeds = unique_values[np.argsort(indices)][0:limit]
-            print (f"Initializing centroids - {seeds}")
+            logging.debug (f"Initializing centroids - {seeds}")
         else:
             # Use previously computed centroids and outgoing value
             prev_centroids, prev_outgoing_val = self.prevClusteringResult[machine_id][dim]
@@ -65,21 +81,21 @@ class Dispatcher(object):
                 # 2. incoming value is same as cluster centroid
                 compute_kmeans = False
                 centroids = prev_centroids
-                print (f"Reusing centroids - {centroids}")
+                logging.debug (f"Reusing centroids - {centroids}")
             elif len(prev_centroids) < maxClusters:
                 # Add newly streamed value to seed if unique
                 seeds = np.append(prev_centroids, incoming_val)
-                print (f"Added {incoming_val} to prev centroids - {seeds}")
+                logging.debug (f"Added {incoming_val} to prev centroids - {seeds}")
             else:
                 seeds = prev_centroids
-                print (f"Using prev centroid - {seeds}")
+                logging.debug (f"Using prev centroid - {seeds}")
 
         if compute_kmeans:
             centroids, ignored = kmeans.cluster(values, seeds, self.KMEANS_MAX_ITERATIONS)
-            print (f"New centroids - {centroids}")
+            logging.debug (f"New centroids - {centroids}")
 
         labels = self.labelValues(values, centroids)
-        print (f"Labels - {labels}")
+        logging.debug (f"Labels - {labels}")
 
         self.prevClusteringResult[machine_id][dim] = (centroids, values[0])
         return (centroids, labels)
@@ -131,17 +147,16 @@ class Dispatcher(object):
         end = start + N
         prob_cur_chain = 1
         
-        print (f"Threshold Prob - {threshold}")
+        logging.debug (f"Threshold Prob - {threshold}")
         for i in range(start, end):
             # Compute initial state transition probability 
             cur_state = labels[i-1]
             next_state = labels[i]
             prob_cur_chain = prob_cur_chain * trans_mat[cur_state, next_state]
 
-        print (f"Prob of Sequence - {prob_cur_chain}")
+        logging.debug(f"Observed probability for initial sequence: {prob_cur_chain}")
         if prob_cur_chain < threshold:
-            print (f"Anomaly detected - {labels}\nThreshold: {threshold}\tComputed:{prob_cur_chain}")
-            sys.exit(0)
+            logging.warning(f"Anomaly detected - {labels}\nThreshold: {threshold}\tComputed:{prob_cur_chain}")
             
         while end <= max_possible_transitions:
             # OPTIMIZATION: Instead of sequence of multiplications, 
@@ -151,14 +166,12 @@ class Dispatcher(object):
             prob_cur_chain = prob_cur_chain / prob_prev_transition * prob_next_transition
             start += 1
             end = start + N
-            print (f"Prob of Sequence - {prob_cur_chain}")
+            logging.debug(f"Observed probability for next sequence: {prob_cur_chain}")
             if prob_cur_chain < threshold:
-                print (f"Anomaly detected - {labels}\nThreshold: {threshold}\tComputed:{prob_cur_chain}")
-                sys.exit(0)
+                logging.warning(f"Anomaly detected - {labels}\nThreshold: {threshold}\tComputed:{prob_cur_chain}")
+
             
 
-    
-    
     def print_info(self):
         for m in self.machinesMap:
             groupQueue = self.machinesMap[m]
