@@ -4,6 +4,7 @@ import os
 import sys
 import re
 import asyncio
+import debs.globals as globals
 import debs.rdf.parse as parser
 import debs.machine as mc
 import debs.observations as myobs
@@ -13,14 +14,7 @@ metadata_file = "/home/imad/workspace/agt-challenge/test_data/18.04.2017.1moldin
 observations_file = "/home/imad/workspace/agt-challenge/test_data/18.04.2017.1molding_machine_308dp/molding_machine_308dp.nt"
 #observations_file = "/home/imad/workspace/agt-challenge/test_data/18.04.2017.1molding_machine_308dp/mini_obsgrp_25.nt"
 
-machines = dict()
-models = dict()
-thresholds = dict()
-
-# Keep track of events (observation groups) as they come in
-global_event_map = dict()
-
-# Variables to keep track of current values
+# Variables to keep track of current values when parsing metadata
 md_cur_model = None
 md_cur_machine = None
 md_cur_property = None
@@ -37,26 +31,26 @@ def process_metadata(a, b, c):
     if pred == "type":
         if obj == "MoldingMachine":
             # machine - type -> moldingMachine
-            machines[sub] = mc.Machine(sub)
+            globals.machines[sub] = mc.Machine(sub)
             md_cur_machine = sub
         elif obj == "StatefulProperty":
-            models[md_cur_model].properties[sub].stateful = True
+            globals.machine_models[md_cur_model].properties[sub].stateful = True
     
     elif pred == "hasModel":
         # machine - hasModel -> machineModel
-        machines[sub].model = obj
+        globals.machines[sub].model = obj
         md_cur_model = obj
-        if not obj in models:
-            models[obj] = mc.MachineModel()
+        if not obj in globals.machine_models:
+            globals.machine_models[obj] = mc.MachineModel()
 
     elif pred == "hasProperty":
         # machineModel - hasProperty -> property
-        models[sub].properties[obj] = mc.Property(obj)
+        globals.machine_models[sub].properties[obj] = mc.Property(obj)
         md_cur_property = obj
     
     elif pred == "hasNumberOfClusters":
         # prop - hasNumberOfClusters -> numClusters
-        models[md_cur_model].properties[sub].numClusters = int(obj)
+        globals.machine_models[md_cur_model].properties[sub].numClusters = int(obj)
     
     elif pred == "valueLiteral":
         if sub.find('ProbabilityThreshold') >= 0:
@@ -65,21 +59,16 @@ def process_metadata(a, b, c):
 
     elif pred == "isThresholdForProperty":
         # ProbabilityThreshold_<id> - isThresholdForProperty -> <property_id>
-        models[md_cur_model].properties[obj].probThreshold = md_cur_prob_threshold
+        globals.machine_models[md_cur_model].properties[obj].probThreshold = md_cur_prob_threshold
 
 
-# Track latest values while parsing
+# Track latest values while parsing observations
 cur_machine = None
 cur_obs_group = None
 cur_observation_id = None
 cur_output_id = None
 cur_value_id = None
 skip_observation = False
-
-WINDOW_SIZE=10
-KMEANS_MAX_ITERATIONS = 1000
-NUM_STATE_TRANSITIONS = 3
-myDispatcher = Dispatcher(WINDOW_SIZE, KMEANS_MAX_ITERATIONS, NUM_STATE_TRANSITIONS, global_event_map)
 
 def process_observations(a, b, c):
     global cur_machine, cur_obs_group, cur_observation_id, cur_output_id, cur_value_id, skip_observation
@@ -94,9 +83,9 @@ def process_observations(a, b, c):
             # Signals start of a new event
             if cur_obs_group != None:
                 # Add old event to dispatcher
-                myDispatcher.processEvent(cur_machine, cur_obs_group, models[machines[cur_machine].model].properties)
+                myDispatcher.processEvent(cur_machine, cur_obs_group, globals.machine_models[globals.machines[cur_machine].model].properties)
                 pass
-            global_event_map[sub] = myobs.ObservationGroup(sub)
+            globals.event_map[sub] = myobs.ObservationGroup(sub)
             # (Re)set outputs and values maps
             outputs = dict()
             values = dict()
@@ -105,16 +94,16 @@ def process_observations(a, b, c):
             pass
     
     elif pred == 'observationResultTime':
-        global_event_map[sub].timeStampId = obj
+        globals.event_map[sub].timeStampId = obj
 
     elif pred == 'machine':
-        global_event_map[sub].machineId = obj
+        globals.event_map[sub].machineId = obj
         cur_machine = obj
     
     elif pred == 'contains':
         cur_observation_id = obj
         # Create observation object
-        global_event_map[cur_obs_group].observations[obj] = myobs.Observation(obj)
+        globals.event_map[cur_obs_group].observations[obj] = myobs.Observation(obj)
 
     elif pred == 'hasValue':
         cur_value_id = obj
@@ -123,23 +112,23 @@ def process_observations(a, b, c):
         cur_output_id = obj
 
     elif pred == 'observedCycle':
-        global_event_map[sub].cycle = obj
+        globals.event_map[sub].cycle = obj
     
     elif pred == 'observedProperty':
-        m_model = models[machines[cur_machine].model]
+        m_model = globals.machine_models[globals.machines[cur_machine].model]
         # Only track stateful properties, else omit observing
         if not m_model.isStatefulProperty(obj):
             skip_observation = True
-            del global_event_map[cur_obs_group].observations[cur_observation_id]
+            del globals.event_map[cur_obs_group].observations[cur_observation_id]
         else:
             skip_observation = False
-            global_event_map[cur_obs_group].observations[cur_observation_id].observedProperty = obj
+            globals.event_map[cur_obs_group].observations[cur_observation_id].observedProperty = obj
     
     elif pred == 'valueLiteral':
-        if sub.find('Timestamp') >= 0 and global_event_map[cur_obs_group].timeStampId == sub :
-            global_event_map[cur_obs_group].timeStampValue = obj
+        if sub.find('Timestamp') >= 0 and globals.event_map[cur_obs_group].timeStampId == sub :
+            globals.event_map[cur_obs_group].timeStampValue = obj
         elif sub.find('Value') >= 0 and not skip_observation:
-            global_event_map[cur_obs_group].observations[cur_observation_id].outputValue = obj
+            globals.event_map[cur_obs_group].observations[cur_observation_id].outputValue = obj
 
 def run():
     count = 0
@@ -156,23 +145,20 @@ def run():
             process_observations(sub, pred, obj)
 
         # Stream Ended call dispatcher again
-        myDispatcher.processEvent(cur_machine, cur_obs_group, models[machines[cur_machine].model].properties, force_run=True)
+        myDispatcher.processEvent(cur_machine, cur_obs_group, globals.machine_models[globals.machines[cur_machine].model].properties, force_run=True)
+
+
+myDispatcher = Dispatcher()
 
 print (f"Metadata from - {metadata_file}\nObservations from - {observations_file}")
 run()
 
-# Metadata values
-# for m in models:
-#     mod = models[m]
-#     mod.print_info()
-    
-
 
 # def csv_print():
 #     row_array = []
-#     for group in global_event_map:
+#     for group in globals.event_map:
 #         col_array = []
-#         og = global_event_map[group]
+#         og = globals.event_map[group]
 #         col_array.append(og.machineId)
 #         col_array.append(og.timeStampValue)
 #         for ob in og.observations:

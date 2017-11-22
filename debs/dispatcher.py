@@ -1,11 +1,12 @@
 import numpy as np
 import sys
 import logging
+from . import globals
 from . import kmeans
 from collections import defaultdict
 
-log_level=logging.DEBUG
-#log_level=logging.WARNING
+#log_level=logging.DEBUG
+log_level=logging.WARNING
 logging.basicConfig(filename='dispatch.log', filemode='w', level=log_level, format='Dispatcher.py: %(message)s')
 
 # Print Info messages to the console
@@ -15,18 +16,14 @@ logging.getLogger().addHandler(consoleHandler)
 
 
 class Dispatcher(object):
-    def __init__(self, window_size, max_iter, num_transitions, event_map):
-        self.WINDOW_SIZE = window_size
-        self.KMEANS_MAX_ITERATIONS = max_iter
-        self.NUM_STATE_TRANSITIONS = num_transitions
+    def __init__(self):
         self.machinesMap = defaultdict(list)
-        self.events = event_map
         # Keep track of prev cluster centroids/machine and outgoing value from current window
         self.prevClusteringResult = defaultdict(dict)
         self.processedEvents = defaultdict(list)
 
     def processEvent(self, machine_id, obs_group_id, metadata, force_run=False):
-        if len(self.machinesMap[machine_id]) == self.WINDOW_SIZE or force_run:
+        if len(self.machinesMap[machine_id]) == globals.WINDOW_SIZE or force_run:
             # Window size for machine is full. Onward to clustering
             logging.info (f"Processing Machine with ID: {machine_id}; Observation Group: {obs_group_id}")
             self.processMachineStream(machine_id, obs_group_id, metadata)
@@ -38,19 +35,24 @@ class Dispatcher(object):
         self.machinesMap[machine_id].append(obs_group_id)
 
     def processMachineStream(self, machine_id, obs_group_id, metadata):
+        """
+        Run the computation pipeline for a given machine for each stateful dimension
+        """
         data = []
         for oid in self.machinesMap[machine_id]:
-            data.extend(self.events[oid].getObservations())
+            data.extend(globals.event_map[oid].getObservations())
         adata = np.array(data)
 
         # Get unique observed properties
         statefulDims = np.unique(adata[:,1])
         for dim in statefulDims:
+            if len(globals.properties_to_filter) > 0 and dim not in globals.properties_to_filter:
+                continue
             # Extract values for a given observed property
             observationsForProp = adata[adata[:,1] == dim]
             observedValues = observationsForProp[:,2].astype(float)
             numClusters = metadata[dim].numClusters
-            ts_id = self.events[obs_group_id].timeStampId
+            ts_id = globals.event_map[obs_group_id].timeStampId
             logging.debug(f"\nNow clustering observations for property {dim} with Timestamp:{ts_id}...")
             centroids, labels = self.clusterValues(machine_id, dim, observedValues, numClusters)
             logging.debug("Now building Markov model ...")
@@ -95,7 +97,7 @@ class Dispatcher(object):
                 logging.debug (f"Using prev centroid - {seeds}")
 
         if compute_kmeans:
-            centroids, ignored = kmeans.cluster(values, seeds, self.KMEANS_MAX_ITERATIONS)
+            centroids, ignored = kmeans.cluster(values, seeds, globals.KMEANS_MAX_ITERATIONS)
             logging.debug (f"New centroids - {centroids}")
 
         labels = self.labelValues(values, centroids)
@@ -142,7 +144,7 @@ class Dispatcher(object):
         return trans_mat
 
     def detectAnomalies(self, labels, trans_mat, threshold):
-        N = self.NUM_STATE_TRANSITIONS
+        N = globals.NUM_STATE_TRANSITIONS
         # Max number of possible state transitions is dependent of window size
         max_possible_transitions = len(labels) - 1
         if N > max_possible_transitions:
@@ -169,7 +171,8 @@ class Dispatcher(object):
             prob_prev_transition = trans_mat[labels[start-1], labels[start]]
             prob_next_transition = trans_mat[labels[end-1], labels[end]]
             logging.debug(f"P(previous[{labels[start-1]}->{labels[start]}]): {trans_mat[labels[start-1], labels[start]]}; P(next[{labels[end-1]}->{labels[end]}]): {trans_mat[labels[end-1], labels[end]]}")
-            prob_cur_chain = prob_cur_chain / prob_prev_transition * prob_next_transition
+            if prob_prev_transition != prob_next_transition: # Avoid unnecessary computation
+                prob_cur_chain = prob_cur_chain / prob_prev_transition * prob_next_transition
             start += 1
             end = start + N
             logging.debug(f"Observed probability for next sequence: {prob_cur_chain}")
