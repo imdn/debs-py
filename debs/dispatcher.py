@@ -5,8 +5,9 @@ from . import globals
 from . import kmeans
 from collections import defaultdict
 
-#log_level=logging.DEBUG
-log_level=logging.WARNING
+log_level=logging.DEBUG
+#log_level=logging.WARNING
+#log_level=logging.INFO
 logging.basicConfig(filename='dispatch.log', filemode='w', level=log_level, format='Dispatcher.py: %(message)s')
 
 # Print Info messages to the console
@@ -41,7 +42,7 @@ class Dispatcher(object):
             # After run is over, remove the first observation group for the particular machine
             logging.debug (f"Removing observation group from window: {self.event_window[machine_id][0]}")
             del self.event_window[machine_id][0]
-            logging.info (f"Finished processing Machine with ID: {machine_id}; Observation Group: {obs_group_id}")
+            logging.info (f"Finished processing Machine with ID: {machine_id}; Observation Group: {obs_group_id}\n")
         
         self.event_window[machine_id].append(obs_group_id)
 
@@ -172,33 +173,38 @@ class Dispatcher(object):
         start = 1
         end = start + N
         prob_cur_chain = 1
+        iterations_completed = 0
         
         logging.debug (f"Threshold Prob - {threshold}")
         for i in range(start, end):
-            # Compute initial state transition probability 
+            # Compute initial N-transitions probability in given window
             cur_state = labels[i-1]
             next_state = labels[i]
             prob_cur_chain = prob_cur_chain * trans_mat[cur_state, next_state]
             logging.debug(f"State: {cur_state}->{next_state} ; Probability: {trans_mat[cur_state, next_state]}")
             if prob_cur_chain < threshold:
-                logging.debug(f"Anomaly detected - {labels}\nThreshold: {threshold}\tComputed:{prob_cur_chain}")
-                abnormal_value_index = i
+                logging.debug(f"Anomaly detected in sequence: {labels[start-1:end]}\nThreshold: {threshold}\tComputed:{prob_cur_chain}")
+                # Abnormal index lies at beginning of state transitions
+                abnormal_value_index = start - 1
                 return (True, abnormal_value_index, prob_cur_chain)
 
-        logging.debug(f"Observed probability for initial sequence: {prob_cur_chain}")
+        logging.debug(f"Observed probability for initial state sequence, label index {start-1} to {end-1}; P = {prob_cur_chain}")
             
         while end <= max_possible_transitions:
             # OPTIMIZATION: Instead of sequence of multiplications, 
             # P (next_chain) = P(cur_chain) / P(outgoing_transition) * P(next_transition)
             prob_prev_transition = trans_mat[labels[start-1], labels[start]]
             prob_next_transition = trans_mat[labels[end-1], labels[end]]
-            logging.debug(f"P(previous[{labels[start-1]}->{labels[start]}]): {trans_mat[labels[start-1], labels[start]]}; P(next[{labels[end-1]}->{labels[end]}]): {trans_mat[labels[end-1], labels[end]]}")
-            if prob_prev_transition != prob_next_transition: # Avoid unnecessary computation
+            logging.debug(f"P(previous:{labels[start-1]}->{labels[start]})= {trans_mat[labels[start-1], labels[start]]}; P(next:{labels[end-1]}->{labels[end]}): {trans_mat[labels[end-1], labels[end]]}")
+
+            # Avoid unnecessary computation
+            if prob_prev_transition != prob_next_transition: 
                 prob_cur_chain = prob_cur_chain / prob_prev_transition * prob_next_transition
-            logging.debug(f"Observed probability for next sequence: {prob_cur_chain}")
+
+            logging.debug(f"Observed probability for next state sequence, label index {start-1} to {end-1}; P = {prob_cur_chain}")
             if prob_cur_chain < threshold:
-                logging.debug(f"Anomaly detected - {labels}\nThreshold: {threshold}\tComputed:{prob_cur_chain}")
-                abnormal_value_index = end
+                logging.debug(f"Anomaly detected in sequence: {labels[start-1:end]}\nThreshold: {threshold}\tComputed:{prob_cur_chain}")
+                abnormal_value_index = start
                 return (True, abnormal_value_index, prob_cur_chain)
             start += 1
             end = start + N
