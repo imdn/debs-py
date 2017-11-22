@@ -49,7 +49,7 @@ def process_metadata(a, b, c):
         md_cur_property = obj
     
     elif pred == "hasNumberOfClusters":
-        # prop - hasNumberOfClusters -> numClusters
+        # prop - hasNumberOfClusters -> num_clusters
         globals.machine_models[md_cur_model].properties[sub].num_clusters = int(obj)
     
     elif pred == "valueLiteral":
@@ -83,7 +83,7 @@ def process_observations(a, b, c):
             # Signals start of a new event
             if cur_obs_group != None:
                 # Add old event to dispatcher
-                myDispatcher.process_event(cur_machine, cur_obs_group, globals.machine_models[globals.machines[cur_machine].model].properties)
+                myDispatcher.process_event(cur_machine, cur_obs_group)
                 pass
             globals.event_map[sub] = myobs.ObservationGroup(sub)
             # (Re)set outputs and values maps
@@ -145,7 +145,7 @@ def run():
             process_observations(sub, pred, obj)
 
         # Stream Ended call dispatcher again
-        myDispatcher.process_event(cur_machine, cur_obs_group, globals.machine_models[globals.machines[cur_machine].model].properties, force_run=True)
+        myDispatcher.process_event(cur_machine, cur_obs_group, force_run=True)
 
 
 myDispatcher = Dispatcher()

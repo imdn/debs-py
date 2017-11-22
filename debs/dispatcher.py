@@ -24,21 +24,29 @@ class Dispatcher(object):
         self.prev_clustering_result = defaultdict(dict)
         self.processed_events = defaultdict(list)
 
-    def process_event(self, machine_id, obs_group_id, metadata, force_run=False):
+    def process_event(self, machine_id, obs_group_id, force_run=False):
+        """ Dispatches events down the processing pipeline when window is full
+
+            optional argument:
+            force_run -- If True, dispatch event from current machine for processing even 
+                         if the window is not full
+        """
+
         if len(self.machine_map[machine_id]) == globals.WINDOW_SIZE or force_run:
             # Window size for machine is full. Onward to clustering
             logging.info (f"Processing Machine with ID: {machine_id}; Observation Group: {obs_group_id}")
-            self.process_machine_stream(machine_id, obs_group_id, metadata)
+            self.process_machine_stream(machine_id, obs_group_id)
             self.processed_events[machine_id].append(obs_group_id)
             # After run is over, remove the first observation group for the particular machine
             logging.debug (f"Removing observation group from window: {self.machine_map[machine_id][0]}")
             del self.machine_map[machine_id][0]
             logging.info (f"Finished processing Machine with ID: {machine_id}; Observation Group: {obs_group_id}")
+        
         self.machine_map[machine_id].append(obs_group_id)
 
     
-    def process_machine_stream(self, machine_id, obs_group_id, metadata):
-        """Run the computation pipeline for a given machine for each stateful dimension """
+    def process_machine_stream(self, machine_id, obs_group_id):
+        """ Run the computation pipeline for a given machine for each stateful dimension """
         
         data = []
         for oid in self.machine_map[machine_id]:
@@ -59,9 +67,9 @@ class Dispatcher(object):
             centroids, labels = self.cluster_values(machine_id, dim, observedValues, num_clusters)
             logging.debug("Now building Markov model ...")
             trans_mat =self.build_transition_probability_matrix(labels, len(centroids))
-            threshold_prob = metadata[dim].prob_threshold
             logging.debug (f"Transition Matrix\n{trans_mat}")
             logging.debug("Now detecting anomalies ...")
+            threshold_prob = globals.get_machine_property(machine_id, dim, 'prob_threshold')
             has_anomalies, obs_probability = self.detect_anomalies(labels, trans_mat, threshold_prob)
             if has_anomalies:
                 logging.warning(f"Anomalies observed in {machine_id:12}\tProperty: {dim:7}\tTimestamp: {ts_id:16}\tP(observed): {obs_probability:22} vs. P(threshold): {threshold_prob}")

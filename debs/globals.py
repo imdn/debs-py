@@ -8,15 +8,20 @@ NUM_STATE_TRANSITIONS = 5
 KMEANS_MAX_ITERATIONS = 1000
 
 
-# Machines in incoming stream
+# Store Machine metadata from incoming stream
 machines = dict()
 
-# Machines Models in incoming stream
+# Store machine model metadata from incoming stream
 machine_models = dict()
 
-# Keep track of events (observation groups) as they come in
+# Keep track of events (observation groups) as they are streamed in
 event_map = dict()
 
 # Filter list of properties to cluster. Useful for debugging
 #properties_to_filter = None
 properties_to_filter = ['_59_31']
+
+def get_machine_property(machine_id, prop_id, prop_name):
+    model_name = machines[machine_id].model
+    properties = machine_models[model_name].properties[prop_id]
+    return getattr(properties, prop_name)

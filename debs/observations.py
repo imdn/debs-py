@@ -8,8 +8,10 @@ class ObservationGroup(object):
         self.observations = dict()
 
     def get_observations(self):
-        """
-        Return list of observations in the form of (TimestampId, ObservedProperty, Value)
+        """ Return observations  in current observation group
+
+        Observations are returned as a list of tuples.
+        Each tuple contains (TimestampId, ObservedProperty, Value)
         """
         ob_list = []
         for oid in self.observations:
@@ -28,7 +30,6 @@ class Observation(object):
         self.observation_id = id
         self.observed_property = None
         self.output_id = None
-        #self.output_valueId = None
         self.output_value = None
 
     def print_info(self):
