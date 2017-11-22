@@ -51,13 +51,13 @@ class Dispatcher(object):
             # Extract values for a given observed property
             observationsForProp = adata[adata[:,1] == dim]
             observedValues = observationsForProp[:,2].astype(float)
-            numClusters = metadata[dim].numClusters
-            ts_id = globals.event_map[obs_group_id].timeStampId
+            numClusters = metadata[dim].num_clusters
+            ts_id = globals.event_map[obs_group_id].time_stamp_id
             logging.debug(f"\nNow clustering observations for property {dim} with Timestamp:{ts_id}...")
             centroids, labels = self.clusterValues(machine_id, dim, observedValues, numClusters)
             logging.debug("Now building Markov model ...")
             trans_mat =self.buildTransitionProbabilityMatrix(labels, len(centroids))
-            thresholdProb = metadata[dim].probThreshold
+            thresholdProb = metadata[dim].prob_threshold
             logging.debug (f"Transition Matrix\n{trans_mat}")
             logging.debug("Now detecting anomalies ...")
             has_anomalies, obs_probability = self.detectAnomalies(labels, trans_mat, thresholdProb)

@@ -1,9 +1,9 @@
 class ObservationGroup(object):
     def __init__(self, id):
-        self.groupId = id
-        self.machineId = None
-        self.timeStampId = None
-        self.timeStampValue = None
+        self.group_id = id
+        self.machine_id = None
+        self.time_stamp_id = None
+        self.time_stamp_value = None
         self.cycle = None
         self.observations = dict()
 
@@ -14,22 +14,22 @@ class ObservationGroup(object):
         ob_list = []
         for oid in self.observations:
             observation = self.observations[oid]
-            ob_list.append((self.timeStampId, observation.observedProperty, observation.outputValue))
+            ob_list.append((self.time_stamp_id, observation.observed_property, observation.output_value))
         return ob_list
     
     def print_info(self):
-        print(f"ID: {self.groupId}; Machine: {self.machineId}; Time: {self.timeStampValue}; Cycle: {self.cycle}")
+        print(f"ID: {self.group_id}; Machine: {self.machine_id}; Time: {self.time_stamp_value}; Cycle: {self.cycle}")
         for o in self.observations:
             self.observations[o].print_info()
 
 
 class Observation(object):
     def __init__(self, id):
-        self.observationId = id
-        self.observedProperty = None
-        self.outputId = None
-        #self.outputValueId = None
-        self.outputValue = None
+        self.observation_id = id
+        self.observed_property = None
+        self.output_id = None
+        #self.output_valueId = None
+        self.output_value = None
 
     def print_info(self):
-        print (f"ObservationID: {self.observationId}; Property: {self.observedProperty}; Value: {self.outputValue}")
+        print (f"ObservationID: {self.observation_id}; Property: {self.observed_property}; Value: {self.output_value}")

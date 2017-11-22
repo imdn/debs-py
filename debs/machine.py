@@ -1,3 +1,4 @@
+# Machine model metadata
 class MachineModel(object):
     def __init__(self):
         self.type = type
@@ -14,14 +15,15 @@ class MachineModel(object):
             return self.properties[propId].stateful
         return None
 
-# Property of MachineModel
+# Properties of a given Machine Model
 class Property(object):
     def __init__(self, id):
         self.propId = id
-        self.probThreshold = None
-        self.numClusters = None # K
+        self.prob_threshold = None
+        self.num_clusters = None # K
         self.stateful = False
-           
+
+# Machine
 class Machine(object):
     def __init__(self, id):
         self.id = id

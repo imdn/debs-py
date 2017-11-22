@@ -50,7 +50,7 @@ def process_metadata(a, b, c):
     
     elif pred == "hasNumberOfClusters":
         # prop - hasNumberOfClusters -> numClusters
-        globals.machine_models[md_cur_model].properties[sub].numClusters = int(obj)
+        globals.machine_models[md_cur_model].properties[sub].num_clusters = int(obj)
     
     elif pred == "valueLiteral":
         if sub.find('ProbabilityThreshold') >= 0:
@@ -59,7 +59,7 @@ def process_metadata(a, b, c):
 
     elif pred == "isThresholdForProperty":
         # ProbabilityThreshold_<id> - isThresholdForProperty -> <property_id>
-        globals.machine_models[md_cur_model].properties[obj].probThreshold = md_cur_prob_threshold
+        globals.machine_models[md_cur_model].properties[obj].prob_threshold = md_cur_prob_threshold
 
 
 # Track latest values while parsing observations
@@ -94,10 +94,10 @@ def process_observations(a, b, c):
             pass
     
     elif pred == 'observationResultTime':
-        globals.event_map[sub].timeStampId = obj
+        globals.event_map[sub].time_stamp_id = obj
 
     elif pred == 'machine':
-        globals.event_map[sub].machineId = obj
+        globals.event_map[sub].machine_id = obj
         cur_machine = obj
     
     elif pred == 'contains':
@@ -122,13 +122,13 @@ def process_observations(a, b, c):
             del globals.event_map[cur_obs_group].observations[cur_observation_id]
         else:
             skip_observation = False
-            globals.event_map[cur_obs_group].observations[cur_observation_id].observedProperty = obj
+            globals.event_map[cur_obs_group].observations[cur_observation_id].observed_property = obj
     
     elif pred == 'valueLiteral':
-        if sub.find('Timestamp') >= 0 and globals.event_map[cur_obs_group].timeStampId == sub :
-            globals.event_map[cur_obs_group].timeStampValue = obj
+        if sub.find('Timestamp') >= 0 and globals.event_map[cur_obs_group].time_stamp_id == sub :
+            globals.event_map[cur_obs_group].time_stamp_value = obj
         elif sub.find('Value') >= 0 and not skip_observation:
-            globals.event_map[cur_obs_group].observations[cur_observation_id].outputValue = obj
+            globals.event_map[cur_obs_group].observations[cur_observation_id].output_value = obj
 
 def run():
     count = 0
@@ -159,11 +159,11 @@ run()
 #     for group in globals.event_map:
 #         col_array = []
 #         og = globals.event_map[group]
-#         col_array.append(og.machineId)
-#         col_array.append(og.timeStampValue)
+#         col_array.append(og.machine_id)
+#         col_array.append(og.time_stamp_value)
 #         for ob in og.observations:
 #             obs = og.observations[ob]
-#             col_array.append(obs.outputValue)
+#             col_array.append(obs.output_value)
 #         row_array.append(col_array)
 
 #     import csv
