@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import os
+import sys
 import re
 import asyncio
 import debs.rdf.parse as parser
@@ -10,9 +11,8 @@ from debs.dispatcher import Dispatcher
 
 metadata_file = "/home/imad/workspace/agt-challenge/test_data/18.04.2017.1molding_machine_308dp/molding_machine_308dp.metadata.nt"
 observations_file = "/home/imad/workspace/agt-challenge/test_data/18.04.2017.1molding_machine_308dp/molding_machine_308dp.nt"
-#observations_file = "/home/imad/workspace/agt-challenge/test_data/18.04.2017.1molding_machine_308dp/mini.nt"
+#observations_file = "/home/imad/workspace/agt-challenge/test_data/18.04.2017.1molding_machine_308dp/mini_obsgrp_25.nt"
 
-#file = "/home/imad/workspace/agt-challenge/test_data/10machines1000dp_static/10molding_machine_1000dp.metadata.nt"
 machines = dict()
 models = dict()
 thresholds = dict()
@@ -155,7 +155,10 @@ def run():
             sub, pred, obj = parser.parse_triple(line.strip('\n'))
             process_observations(sub, pred, obj)
 
+        # Stream Ended call dispatcher again
+        myDispatcher.processEvent(cur_machine, cur_obs_group, models[machines[cur_machine].model].properties, force_run=True)
 
+print (f"Metadata from - {metadata_file}\nObservations from - {observations_file}")
 run()
 
 # Metadata values
