@@ -93,12 +93,12 @@ class Dispatcher(object):
         for v in values:
             distances = np.absolute(centroids - v)
             # Indices of minimum distances
-            mindist_indices = np.where(distances == distances.min())
+            mindist_indices = np.where(distances == distances.min())[0]
             # In case of more than one centroid with same distance, choose one with bigger value
-            if len(mindist_indices) > 1:
+            if mindist_indices.size > 1:
                 mindist_indices = np.where(centroids == centroids[mindist_indices].max())
-            labels.append(mindist_indices)
-        return np.array(labels).flatten()
+            labels.append(mindist_indices[0])
+        return labels
         
 
     def buildTransitionProbabilityMatrix(self, labels, size):
