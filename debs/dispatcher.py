@@ -16,70 +16,75 @@ logging.getLogger().addHandler(consoleHandler)
 
 
 class Dispatcher(object):
+    """ Process stream data for an event """
+    
     def __init__(self):
-        self.machinesMap = defaultdict(list)
+        self.machine_map = defaultdict(list)
         # Keep track of prev cluster centroids/machine and outgoing value from current window
-        self.prevClusteringResult = defaultdict(dict)
-        self.processedEvents = defaultdict(list)
+        self.prev_clustering_result = defaultdict(dict)
+        self.processed_events = defaultdict(list)
 
     def process_event(self, machine_id, obs_group_id, metadata, force_run=False):
-        if len(self.machinesMap[machine_id]) == globals.WINDOW_SIZE or force_run:
+        if len(self.machine_map[machine_id]) == globals.WINDOW_SIZE or force_run:
             # Window size for machine is full. Onward to clustering
             logging.info (f"Processing Machine with ID: {machine_id}; Observation Group: {obs_group_id}")
             self.process_machine_stream(machine_id, obs_group_id, metadata)
-            self.processedEvents[machine_id].append(obs_group_id)
+            self.processed_events[machine_id].append(obs_group_id)
             # After run is over, remove the first observation group for the particular machine
-            logging.debug (f"Removing observation group from window: {self.machinesMap[machine_id][0]}")
-            del self.machinesMap[machine_id][0]
+            logging.debug (f"Removing observation group from window: {self.machine_map[machine_id][0]}")
+            del self.machine_map[machine_id][0]
             logging.info (f"Finished processing Machine with ID: {machine_id}; Observation Group: {obs_group_id}")
-        self.machinesMap[machine_id].append(obs_group_id)
+        self.machine_map[machine_id].append(obs_group_id)
 
+    
     def process_machine_stream(self, machine_id, obs_group_id, metadata):
-        """
-        Run the computation pipeline for a given machine for each stateful dimension
-        """
+        """Run the computation pipeline for a given machine for each stateful dimension """
+        
         data = []
-        for oid in self.machinesMap[machine_id]:
+        for oid in self.machine_map[machine_id]:
             data.extend(globals.event_map[oid].get_observations())
         adata = np.array(data)
 
         # Get unique observed properties
-        statefulDims = np.unique(adata[:,1])
-        for dim in statefulDims:
+        stateful_dims = np.unique(adata[:,1])
+        for dim in stateful_dims:
             if len(globals.properties_to_filter) > 0 and dim not in globals.properties_to_filter:
                 continue
             # Extract values for a given observed property
-            observationsForProp = adata[adata[:,1] == dim]
-            observedValues = observationsForProp[:,2].astype(float)
-            numClusters = metadata[dim].num_clusters
+            observations_for_prop = adata[adata[:,1] == dim]
+            observedValues = observations_for_prop[:,2].astype(float)
+            num_clusters = globals.get_machine_property(machine_id, dim, 'num_clusters')
             ts_id = globals.event_map[obs_group_id].timestamp_id
             logging.debug(f"\nNow clustering observations for property {dim} with Timestamp:{ts_id}...")
-            centroids, labels = self.cluster_values(machine_id, dim, observedValues, numClusters)
+            centroids, labels = self.cluster_values(machine_id, dim, observedValues, num_clusters)
             logging.debug("Now building Markov model ...")
             trans_mat =self.build_transition_probability_matrix(labels, len(centroids))
-            thresholdProb = metadata[dim].prob_threshold
+            threshold_prob = metadata[dim].prob_threshold
             logging.debug (f"Transition Matrix\n{trans_mat}")
             logging.debug("Now detecting anomalies ...")
-            has_anomalies, obs_probability = self.detect_anomalies(labels, trans_mat, thresholdProb)
+            has_anomalies, obs_probability = self.detect_anomalies(labels, trans_mat, threshold_prob)
             if has_anomalies:
-                logging.warning(f"Anomalies observed in {machine_id:12}\tProperty: {dim:7}\tTimestamp: {ts_id:16}\tP(observed): {obs_probability:22} vs. P(threshold): {thresholdProb}")
+                logging.warning(f"Anomalies observed in {machine_id:12}\tProperty: {dim:7}\tTimestamp: {ts_id:16}\tP(observed): {obs_probability:22} vs. P(threshold): {threshold_prob}")
 
     
-    def cluster_values(self, machine_id, dim, values, maxClusters):
+    def cluster_values(self, machine_id, dim, values, max_clusters):
+        """ Optimize computation of cluster centers using k-means """
+        
         compute_kmeans = True
         logging.debug (f"\nObserved Values - {values}")
-        logging.debug (f"Max clusters allowed - {maxClusters}")
-        if dim not in self.prevClusteringResult[machine_id]:
+        logging.debug (f"Max clusters allowed - {max_clusters}")
+
+        if dim not in self.prev_clustering_result[machine_id]:
             # Seed initial values with distinct observations observation values
             # NOTE: This could be inefficient if values is a large array
             unique_values, indices = np.unique(values, return_index=True)
-            limit = maxClusters if maxClusters <= len(unique_values) else len(unique_values)
+            limit = max_clusters if max_clusters <= len(unique_values) else len(unique_values)
             # np.unique is unordered. Use indices to get ordered unique values
             seeds = unique_values[np.argsort(indices)][0:limit]
             logging.debug (f"Initializing centroids - {seeds}")
         else:
             # Use previously computed centroids and outgoing value
-            prev_centroids, prev_outgoing_val = self.prevClusteringResult[machine_id][dim]
+            prev_centroids, prev_outgoing_val = self.prev_clustering_result[machine_id][dim]
             incoming_val = values[-1]
             if prev_outgoing_val == incoming_val or incoming_val in prev_centroids:
                 # OPTIMIZATION: Skip k-means computation if:
@@ -88,13 +93,14 @@ class Dispatcher(object):
                 compute_kmeans = False
                 centroids = prev_centroids
                 logging.debug (f"Reusing centroids - {centroids}")
-            elif len(prev_centroids) < maxClusters:
+            elif len(prev_centroids) < max_clusters:
                 # Add newly streamed value to seed if unique
                 seeds = np.append(prev_centroids, incoming_val)
                 logging.debug (f"Added {incoming_val} to prev centroids - {seeds}")
             else:
                 seeds = prev_centroids
                 logging.debug (f"Using prev centroid - {seeds}")
+
 
         if compute_kmeans:
             centroids, ignored = kmeans.cluster(values, seeds, globals.KMEANS_MAX_ITERATIONS)
@@ -103,14 +109,13 @@ class Dispatcher(object):
         labels = self.label_values(values, centroids)
         logging.debug (f"Labels - {labels}")
 
-        self.prevClusteringResult[machine_id][dim] = (centroids, values[0])
+        self.prev_clustering_result[machine_id][dim] = (centroids, values[0])
         return (centroids, labels)
     
     
     def label_values(self, values, centroids):
-        """
-        Take values and return indices of the cluster they belong to
-        """
+        """ Return indices of the cluster to which the values belong """
+
         labels = []
         for v in values:
             distances = np.absolute(centroids - v)
@@ -124,9 +129,8 @@ class Dispatcher(object):
         
 
     def build_transition_probability_matrix(self, labels, size):
-        """
-        State Transition Probability matrix for Markov Model from Cluster labels
-        """
+        """ State Transition Probability matrix for Markov Model from Cluster labels """
+
         if size == 1:
             trans_mat = np.mat([1])
         else:
@@ -144,6 +148,8 @@ class Dispatcher(object):
         return trans_mat
 
     def detect_anomalies(self, labels, trans_mat, threshold):
+        """ Check if probability of observed sequence of transitions is above threshold """
+        
         N = globals.NUM_STATE_TRANSITIONS
         # Max number of possible state transitions is dependent of window size
         max_possible_transitions = len(labels) - 1
@@ -181,11 +187,4 @@ class Dispatcher(object):
                 return (True, prob_cur_chain)
 
         return (False, prob_cur_chain)
-            
 
-    def print_info(self):
-        for m in self.machinesMap:
-            groupQueue = self.machinesMap[m]
-            while not len(groupQueue) == 0:
-                gid = groupQueue.pop(0)
-                print (f"Machine {m} - {gid}")
