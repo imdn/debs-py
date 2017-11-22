@@ -83,7 +83,7 @@ def process_observations(a, b, c):
             # Signals start of a new event
             if cur_obs_group != None:
                 # Add old event to dispatcher
-                myDispatcher.processEvent(cur_machine, cur_obs_group, globals.machine_models[globals.machines[cur_machine].model].properties)
+                myDispatcher.process_event(cur_machine, cur_obs_group, globals.machine_models[globals.machines[cur_machine].model].properties)
                 pass
             globals.event_map[sub] = myobs.ObservationGroup(sub)
             # (Re)set outputs and values maps
@@ -94,7 +94,7 @@ def process_observations(a, b, c):
             pass
     
     elif pred == 'observationResultTime':
-        globals.event_map[sub].time_stamp_id = obj
+        globals.event_map[sub].timestamp_id = obj
 
     elif pred == 'machine':
         globals.event_map[sub].machine_id = obj
@@ -117,7 +117,7 @@ def process_observations(a, b, c):
     elif pred == 'observedProperty':
         m_model = globals.machine_models[globals.machines[cur_machine].model]
         # Only track stateful properties, else omit observing
-        if not m_model.isStatefulProperty(obj):
+        if not m_model.is_stateful_property(obj):
             skip_observation = True
             del globals.event_map[cur_obs_group].observations[cur_observation_id]
         else:
@@ -125,8 +125,8 @@ def process_observations(a, b, c):
             globals.event_map[cur_obs_group].observations[cur_observation_id].observed_property = obj
     
     elif pred == 'valueLiteral':
-        if sub.find('Timestamp') >= 0 and globals.event_map[cur_obs_group].time_stamp_id == sub :
-            globals.event_map[cur_obs_group].time_stamp_value = obj
+        if sub.find('Timestamp') >= 0 and globals.event_map[cur_obs_group].timestamp_id == sub :
+            globals.event_map[cur_obs_group].timestamp_value = obj
         elif sub.find('Value') >= 0 and not skip_observation:
             globals.event_map[cur_obs_group].observations[cur_observation_id].output_value = obj
 
@@ -145,7 +145,7 @@ def run():
             process_observations(sub, pred, obj)
 
         # Stream Ended call dispatcher again
-        myDispatcher.processEvent(cur_machine, cur_obs_group, globals.machine_models[globals.machines[cur_machine].model].properties, force_run=True)
+        myDispatcher.process_event(cur_machine, cur_obs_group, globals.machine_models[globals.machines[cur_machine].model].properties, force_run=True)
 
 
 myDispatcher = Dispatcher()
@@ -160,7 +160,7 @@ run()
 #         col_array = []
 #         og = globals.event_map[group]
 #         col_array.append(og.machine_id)
-#         col_array.append(og.time_stamp_value)
+#         col_array.append(og.timestamp_value)
 #         for ob in og.observations:
 #             obs = og.observations[ob]
 #             col_array.append(obs.output_value)

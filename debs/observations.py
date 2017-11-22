@@ -2,23 +2,23 @@ class ObservationGroup(object):
     def __init__(self, id):
         self.group_id = id
         self.machine_id = None
-        self.time_stamp_id = None
-        self.time_stamp_value = None
+        self.timestamp_id = None
+        self.timestamp_value = None
         self.cycle = None
         self.observations = dict()
 
-    def getObservations(self):
+    def get_observations(self):
         """
         Return list of observations in the form of (TimestampId, ObservedProperty, Value)
         """
         ob_list = []
         for oid in self.observations:
             observation = self.observations[oid]
-            ob_list.append((self.time_stamp_id, observation.observed_property, observation.output_value))
+            ob_list.append((self.timestamp_id, observation.observed_property, observation.output_value))
         return ob_list
     
     def print_info(self):
-        print(f"ID: {self.group_id}; Machine: {self.machine_id}; Time: {self.time_stamp_value}; Cycle: {self.cycle}")
+        print(f"ID: {self.group_id}; Machine: {self.machine_id}; Time: {self.timestamp_value}; Cycle: {self.cycle}")
         for o in self.observations:
             self.observations[o].print_info()
 

@@ -22,11 +22,11 @@ class Dispatcher(object):
         self.prevClusteringResult = defaultdict(dict)
         self.processedEvents = defaultdict(list)
 
-    def processEvent(self, machine_id, obs_group_id, metadata, force_run=False):
+    def process_event(self, machine_id, obs_group_id, metadata, force_run=False):
         if len(self.machinesMap[machine_id]) == globals.WINDOW_SIZE or force_run:
             # Window size for machine is full. Onward to clustering
             logging.info (f"Processing Machine with ID: {machine_id}; Observation Group: {obs_group_id}")
-            self.processMachineStream(machine_id, obs_group_id, metadata)
+            self.process_machine_stream(machine_id, obs_group_id, metadata)
             self.processedEvents[machine_id].append(obs_group_id)
             # After run is over, remove the first observation group for the particular machine
             logging.debug (f"Removing observation group from window: {self.machinesMap[machine_id][0]}")
@@ -34,13 +34,13 @@ class Dispatcher(object):
             logging.info (f"Finished processing Machine with ID: {machine_id}; Observation Group: {obs_group_id}")
         self.machinesMap[machine_id].append(obs_group_id)
 
-    def processMachineStream(self, machine_id, obs_group_id, metadata):
+    def process_machine_stream(self, machine_id, obs_group_id, metadata):
         """
         Run the computation pipeline for a given machine for each stateful dimension
         """
         data = []
         for oid in self.machinesMap[machine_id]:
-            data.extend(globals.event_map[oid].getObservations())
+            data.extend(globals.event_map[oid].get_observations())
         adata = np.array(data)
 
         # Get unique observed properties
@@ -52,20 +52,20 @@ class Dispatcher(object):
             observationsForProp = adata[adata[:,1] == dim]
             observedValues = observationsForProp[:,2].astype(float)
             numClusters = metadata[dim].num_clusters
-            ts_id = globals.event_map[obs_group_id].time_stamp_id
+            ts_id = globals.event_map[obs_group_id].timestamp_id
             logging.debug(f"\nNow clustering observations for property {dim} with Timestamp:{ts_id}...")
-            centroids, labels = self.clusterValues(machine_id, dim, observedValues, numClusters)
+            centroids, labels = self.cluster_values(machine_id, dim, observedValues, numClusters)
             logging.debug("Now building Markov model ...")
-            trans_mat =self.buildTransitionProbabilityMatrix(labels, len(centroids))
+            trans_mat =self.build_transition_probability_matrix(labels, len(centroids))
             thresholdProb = metadata[dim].prob_threshold
             logging.debug (f"Transition Matrix\n{trans_mat}")
             logging.debug("Now detecting anomalies ...")
-            has_anomalies, obs_probability = self.detectAnomalies(labels, trans_mat, thresholdProb)
+            has_anomalies, obs_probability = self.detect_anomalies(labels, trans_mat, thresholdProb)
             if has_anomalies:
                 logging.warning(f"Anomalies observed in {machine_id:12}\tProperty: {dim:7}\tTimestamp: {ts_id:16}\tP(observed): {obs_probability:22} vs. P(threshold): {thresholdProb}")
 
     
-    def clusterValues(self, machine_id, dim, values, maxClusters):
+    def cluster_values(self, machine_id, dim, values, maxClusters):
         compute_kmeans = True
         logging.debug (f"\nObserved Values - {values}")
         logging.debug (f"Max clusters allowed - {maxClusters}")
@@ -100,14 +100,14 @@ class Dispatcher(object):
             centroids, ignored = kmeans.cluster(values, seeds, globals.KMEANS_MAX_ITERATIONS)
             logging.debug (f"New centroids - {centroids}")
 
-        labels = self.labelValues(values, centroids)
+        labels = self.label_values(values, centroids)
         logging.debug (f"Labels - {labels}")
 
         self.prevClusteringResult[machine_id][dim] = (centroids, values[0])
         return (centroids, labels)
     
     
-    def labelValues(self, values, centroids):
+    def label_values(self, values, centroids):
         """
         Take values and return indices of the cluster they belong to
         """
@@ -123,7 +123,7 @@ class Dispatcher(object):
         return labels
         
 
-    def buildTransitionProbabilityMatrix(self, labels, size):
+    def build_transition_probability_matrix(self, labels, size):
         """
         State Transition Probability matrix for Markov Model from Cluster labels
         """
@@ -143,7 +143,7 @@ class Dispatcher(object):
 
         return trans_mat
 
-    def detectAnomalies(self, labels, trans_mat, threshold):
+    def detect_anomalies(self, labels, trans_mat, threshold):
         N = globals.NUM_STATE_TRANSITIONS
         # Max number of possible state transitions is dependent of window size
         max_possible_transitions = len(labels) - 1
