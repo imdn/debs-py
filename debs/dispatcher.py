@@ -19,7 +19,8 @@ class Dispatcher(object):
     """ Process stream data for an event """
     
     def __init__(self):
-        self.machine_map = defaultdict(list)
+        # Dict of machines, pointing to list of observed events
+        self.event_window = defaultdict(list)
         # Keep track of prev cluster centroids/machine and outgoing value from current window
         self.prev_clustering_result = defaultdict(dict)
         self.processed_events = defaultdict(list)
@@ -32,26 +33,27 @@ class Dispatcher(object):
                          if the window is not full
         """
 
-        if len(self.machine_map[machine_id]) == globals.WINDOW_SIZE or force_run:
+        if len(self.event_window[machine_id]) == globals.WINDOW_SIZE or force_run:
             # Window size for machine is full. Onward to clustering
             logging.info (f"Processing Machine with ID: {machine_id}; Observation Group: {obs_group_id}")
             self.process_machine_stream(machine_id, obs_group_id)
             self.processed_events[machine_id].append(obs_group_id)
             # After run is over, remove the first observation group for the particular machine
-            logging.debug (f"Removing observation group from window: {self.machine_map[machine_id][0]}")
-            del self.machine_map[machine_id][0]
+            logging.debug (f"Removing observation group from window: {self.event_window[machine_id][0]}")
+            del self.event_window[machine_id][0]
             logging.info (f"Finished processing Machine with ID: {machine_id}; Observation Group: {obs_group_id}")
         
-        self.machine_map[machine_id].append(obs_group_id)
+        self.event_window[machine_id].append(obs_group_id)
 
     
     def process_machine_stream(self, machine_id, obs_group_id):
         """ Run the computation pipeline for a given machine for each stateful dimension """
         
         data = []
-        for oid in self.machine_map[machine_id]:
+        for oid in self.event_window[machine_id]:
             data.extend(globals.event_map[oid].get_observations())
         adata = np.array(data)
+        np.save('data.npy', adata)
 
         # Get unique observed properties
         stateful_dims = np.unique(adata[:,1])
@@ -60,19 +62,22 @@ class Dispatcher(object):
                 continue
             # Extract values for a given observed property
             observations_for_prop = adata[adata[:,1] == dim]
-            observedValues = observations_for_prop[:,2].astype(float)
+            observed_values = observations_for_prop[:,2].astype(float)
+            timestamp_ids = observations_for_prop[:,0]
             num_clusters = globals.get_machine_property(machine_id, dim, 'num_clusters')
-            ts_id = globals.event_map[obs_group_id].timestamp_id
-            logging.debug(f"\nNow clustering observations for property {dim} with Timestamp:{ts_id}...")
-            centroids, labels = self.cluster_values(machine_id, dim, observedValues, num_clusters)
+            ts_start = timestamp_ids[0]
+            ts_end = timestamp_ids[-1]
+            logging.debug(f"Now clustering observations for property {dim} between {ts_start}...{ts_end}")
+            centroids, labels = self.cluster_values(machine_id, dim, observed_values, num_clusters)
             logging.debug("Now building Markov model ...")
             trans_mat =self.build_transition_probability_matrix(labels, len(centroids))
             logging.debug (f"Transition Matrix\n{trans_mat}")
             logging.debug("Now detecting anomalies ...")
             threshold_prob = globals.get_machine_property(machine_id, dim, 'prob_threshold')
-            has_anomalies, obs_probability = self.detect_anomalies(labels, trans_mat, threshold_prob)
+            has_anomalies, abnormal_val_index, obs_probability = self.detect_anomalies(labels, trans_mat, threshold_prob)
             if has_anomalies:
-                logging.warning(f"Anomalies observed in {machine_id:12}\tProperty: {dim:7}\tTimestamp: {ts_id:16}\tP(observed): {obs_probability:22} vs. P(threshold): {threshold_prob}")
+                abnormal_ts = timestamp_ids[abnormal_val_index]
+                logging.warning(f"Anomalies observed in {machine_id:12}\tProperty: {dim:7}\tTimestamp: {abnormal_ts:16}\tP(observed): {obs_probability:22} vs. P(threshold): {threshold_prob}")
 
     
     def cluster_values(self, machine_id, dim, values, max_clusters):
@@ -159,6 +164,7 @@ class Dispatcher(object):
         """ Check if probability of observed sequence of transitions is above threshold """
         
         N = globals.NUM_STATE_TRANSITIONS
+        abnormal_value_index = None
         # Max number of possible state transitions is dependent of window size
         max_possible_transitions = len(labels) - 1
         if N > max_possible_transitions:
@@ -174,10 +180,12 @@ class Dispatcher(object):
             next_state = labels[i]
             prob_cur_chain = prob_cur_chain * trans_mat[cur_state, next_state]
             logging.debug(f"State: {cur_state}->{next_state} ; Probability: {trans_mat[cur_state, next_state]}")
+            if prob_cur_chain < threshold:
+                logging.debug(f"Anomaly detected - {labels}\nThreshold: {threshold}\tComputed:{prob_cur_chain}")
+                abnormal_value_index = i
+                return (True, abnormal_value_index, prob_cur_chain)
 
         logging.debug(f"Observed probability for initial sequence: {prob_cur_chain}")
-        if prob_cur_chain < threshold:
-            return (True, prob_cur_chain)
             
         while end <= max_possible_transitions:
             # OPTIMIZATION: Instead of sequence of multiplications, 
@@ -187,12 +195,13 @@ class Dispatcher(object):
             logging.debug(f"P(previous[{labels[start-1]}->{labels[start]}]): {trans_mat[labels[start-1], labels[start]]}; P(next[{labels[end-1]}->{labels[end]}]): {trans_mat[labels[end-1], labels[end]]}")
             if prob_prev_transition != prob_next_transition: # Avoid unnecessary computation
                 prob_cur_chain = prob_cur_chain / prob_prev_transition * prob_next_transition
-            start += 1
-            end = start + N
             logging.debug(f"Observed probability for next sequence: {prob_cur_chain}")
             if prob_cur_chain < threshold:
                 logging.debug(f"Anomaly detected - {labels}\nThreshold: {threshold}\tComputed:{prob_cur_chain}")
-                return (True, prob_cur_chain)
+                abnormal_value_index = end
+                return (True, abnormal_value_index, prob_cur_chain)
+            start += 1
+            end = start + N
 
-        return (False, prob_cur_chain)
+        return (False, abnormal_value_index, prob_cur_chain)
 
