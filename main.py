@@ -61,7 +61,7 @@ def process_metadata(a, b, c):
     elif pred == "valueLiteral":
         if sub.find('ProbabilityThreshold') >= 0:
             # ProbabilityThreshold_<id> - valueLiteral -> <value>
-            md_cur_prob_threshold = obj
+            md_cur_prob_threshold = float(obj)
 
     elif pred == "isThresholdForProperty":
         # ProbabilityThreshold_<id> - isThresholdForProperty -> <property_id>
@@ -77,7 +77,9 @@ cur_value_id = None
 skip_observation = False
 
 WINDOW_SIZE=10
-myDispatcher = Dispatcher(WINDOW_SIZE, global_event_map)
+KMEANS_MAX_ITERATIONS = 1000
+NUM_STATE_TRANSITIONS = 3
+myDispatcher = Dispatcher(WINDOW_SIZE, KMEANS_MAX_ITERATIONS, NUM_STATE_TRANSITIONS, global_event_map)
 
 def process_observations(a, b, c):
     global cur_machine, cur_obs_group, cur_observation_id, cur_output_id, cur_value_id, skip_observation
@@ -147,9 +149,6 @@ def run():
             sub, pred, obj = parser.parse_triple(line.strip('\n'))
             process_metadata(sub, pred, obj)
 
-            #if count > 10:
-            #    break
-
     with open(observations_file,'r') as fp:
         for line in fp:
             count +=1
@@ -160,33 +159,29 @@ def run():
 run()
 
 # Metadata values
-for m in models:
-    mod = models[m]
-    mod.print_info()
+# for m in models:
+#     mod = models[m]
+#     mod.print_info()
     
 
-for group in global_event_map:
-    og = global_event_map[group].getObservations()
-    print (og)
-    #og.print_info()
 
-def csv_print():
-    row_array = []
-    for group in global_event_map:
-        col_array = []
-        og = global_event_map[group]
-        col_array.append(og.machineId)
-        col_array.append(og.timeStampValue)
-        for ob in og.observations:
-            obs = og.observations[ob]
-            col_array.append(obs.outputValue)
-        row_array.append(col_array)
+# def csv_print():
+#     row_array = []
+#     for group in global_event_map:
+#         col_array = []
+#         og = global_event_map[group]
+#         col_array.append(og.machineId)
+#         col_array.append(og.timeStampValue)
+#         for ob in og.observations:
+#             obs = og.observations[ob]
+#             col_array.append(obs.outputValue)
+#         row_array.append(col_array)
 
-    import csv
-    with open('test.csv', 'w', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        for row in row_array:
-            writer.writerow(row)
+#     import csv
+#     with open('test.csv', 'w', newline='') as csvfile:
+#         writer = csv.writer(csvfile)
+#         for row in row_array:
+#             writer.writerow(row)
 
 #csv_print()
 #myDispatcher.print_info()

@@ -1,61 +1,84 @@
 from . import kmeans
 import numpy as np
 import sys
+from collections import defaultdict
+
 
 class Dispatcher(object):
-    def __init__(self, window_size, event_map):
-        self.windowSize = window_size
+    def __init__(self, window_size, max_iter, num_transitions, event_map):
+        self.WINDOW_SIZE = window_size
+        self.KMEANS_MAX_ITERATIONS = max_iter
+        self.NUM_STATE_TRANSITIONS = num_transitions
         self.machinesMap = dict()
         self.events = event_map
-        self.propClusters = dict()
+        # Keep track of prev cluster centroids/machine and outgoing value from current window
+        self.prevClusteringResult = defaultdict(dict)
+        #self.prevValuesForProp = defaultdict(dict) 
 
     def processEvent(self, machine_id, obs_group_id, metadata):
         if machine_id not in self.machinesMap:
             self.machinesMap[machine_id] = []
-        if len(self.machinesMap[machine_id]) == self.windowSize:
+        if len(self.machinesMap[machine_id]) == self.WINDOW_SIZE:
             # Window size for machine is full. Onward to clustering
             print ("Running clustering")
-            self.runClustering(machine_id, obs_group_id, metadata)
+            self.processMachineStream(machine_id, obs_group_id, metadata)
         self.machinesMap[machine_id].append(obs_group_id)
 
-    def runClustering(self, machine_id, obs_group_id, metadata):
+    def processMachineStream(self, machine_id, obs_group_id, metadata):
         data = []
         for oid in self.machinesMap[machine_id]:
             data.extend(self.events[oid].getObservations())
-        adata = np.array(data)
-        np.save('data.npy', adata)
+            adata = np.array(data)
+            #np.save('data.npy', adata)
+            # Get unique observed properties
+            statefulDims = np.unique(adata[:,1])
+            for dim in statefulDims:
+                # Extract values for a given observed property
+                observationsForProp = adata[adata[:,1] == dim]
+                observedValues = observationsForProp[:,2].astype(float)
+                numClusters = metadata[dim].numClusters
+                centroids, labels = self.clusterValues(machine_id, dim, observedValues, numClusters)
+                mat =self.buildTransitionProbabilityMatrix(labels)
+                thresholdProb = metadata[dim].probThreshold
+                self.detectAnomalies(mat, thresholdProb)
 
-        # Get unique observed properties
-        statefulDims = np.unique(adata[:,1])
-        for dim in statefulDims:
-            # Extract values for a given observed property
-            observationsForProp = adata[adata[:,1] == dim]
-            observedValues = observationsForProp[:,2].astype(float)
-            numClusters = metadata[dim].numClusters
-            if machine_id not in self.propClusters:
-                self.propClusters[machine_id] = dict()
-            if dim not in self.propClusters[machine_id]:
-                # Seed initial values
-                unique_values, indices = np.unique(observedValues, return_index=True)
-                limit = numClusters if numClusters <= len(unique_values) else len(unique_values)
-                # np.unique is unordered. Use indices to get ordered unique values
-                seeds = unique_values[np.argsort(indices)][0:limit]
+    
+    def clusterValues(self, machine_id, dim, values, maxClusters):
+        compute_kmeans = True
+        if dim not in self.prevClusteringResult[machine_id]:
+            # Seed initial values with distinct observations observation values
+            # NOTE: This could be inefficient if values is a large array
+            unique_values, indices = np.unique(values, return_index=True)
+            limit = maxClusters if maxClusters <= len(unique_values) else len(unique_values)
+            # np.unique is unordered. Use indices to get ordered unique values
+            seeds = unique_values[np.argsort(indices)][0:limit]
+        else:
+            # Use previously computed centroids and outgoing value
+            prev_centroids, prev_outgoing_val = self.prevClusteringResult[machine_id][dim]
+            if len(prev_centroids) < maxClusters:
+                # Add newly streamed value to seed if unique
+                print ("Here", values[-1])
+                seeds = np.append(prev_centroids, values[-1])
+                print (seeds)
             else:
-                # Use previously computed centroids
-                # First check if 
-                if len(self.propClusters[machine_id][dim]) < numClusters:
-                    # Add newly streamed value to seed if unique
-                    seeds = np.append(self.propClusters[machine_id][dim], observedValues[-1])
-                else:
-                    seeds = self.propClusters[machine_id][dim]
-            centroids, ignored = kmeans.cluster(observedValues, seeds, 1000)
-            labels = self.assignValuesToCluster(observedValues, centroids)
-            print (f"\n{observedValues}\nSeeds - {seeds}\nCentroids - {centroids}\nLabels - {labels}")
-            mat =self.buildTransitionProbabilityMatrix(labels)
-            print (mat)
-            self.propClusters[machine_id][dim] = centroids
-        sys.exit(0)
+                seeds = prev_centroids
 
+            # OPTIMIZATION: If prev outgoing value is same as new incoming
+            # value cluster centroids are same. In this case skip kmeans.
+            if prev_outgoing_val == values[-1]:
+                compute_kmeans = False
+                centroids = prev_centroids
+
+        if compute_kmeans:
+            print(values, seeds)
+            centroids, ignored = kmeans.cluster(values, seeds, self.KMEANS_MAX_ITERATIONS)
+
+        labels = self.assignValuesToCluster(values, centroids)
+        print (f"\n{values}\nSeeds - {seeds}\nCentroids - {centroids}\nLabels - {labels}")
+
+        self.prevClusteringResult[machine_id][dim] = (centroids, values[0])
+        return (centroids, labels)
+    
     def assignValuesToCluster(self, values, centroids):
         """
         Take values and return indices of the cluster they belong to
@@ -90,6 +113,11 @@ class Dispatcher(object):
                 trans_mat[i] = trans_mat[i] / sum
 
         return trans_mat
+
+    def detectAnomalies(self, mat, thresholds):
+        computed_prob = mat[np.nonzero(mat)].prod()
+        if computed_prob > thresholds:
+            pass
                            
     
     def print_info(self):
