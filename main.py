@@ -44,8 +44,8 @@ def parse_message(ch, method, properties, body):
         parser.process_observations(sub, pred, obj)
 
 def start_listening():
-    print("Started listening")
     queue = global_vars.observations_queue
+    print(f"Listening for messages on queue - {queue}")
     global_vars.channel.queue_declare(queue, auto_delete=True)
     global_vars.channel.basic_consume(parse_message,
                                       queue=queue,
@@ -55,12 +55,12 @@ def start_listening():
 def run():
     load_metadata(parse=True)
     
-    #start_listening()
+    start_listening()
     
-    with open(observations_file,'r') as fp:
-         for line in fp:
-             sub, pred, obj = parser.parse_triple(line.strip('\n'))
-             parser.process_observations(sub, pred, obj)
+    # with open(observations_file,'r') as fp:
+    #      for line in fp:
+    #          sub, pred, obj = parser.parse_triple(line.strip('\n'))
+    #          parser.process_observations(sub, pred, obj)
 
     # Stream Ended call dispatcher again
     # myDispatcher.process_event(cur_machine, cur_obs_group, force_run=True)

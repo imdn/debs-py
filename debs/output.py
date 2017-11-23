@@ -1,4 +1,5 @@
 import logging
+from . import globals as global_vars
 
 outputHandler = logging.FileHandler('output.nt', mode='w')
 outputHandler.setLevel(logging.ERROR)
@@ -8,6 +9,15 @@ sequence_num = 0
 
 def create_triple(sub, pred, obj):
     return f"{sub} {pred} {obj} ."
+
+def streamout_triple(msg):
+    """Dispatch message to queue
+    """
+    queue = global_vars.anomalies_queue
+    global_vars.channel.queue_declare(queue, auto_delete=True)    
+    global_vars.channel.basic_publish(exchange='',
+                                      routing_key=queue,
+                                      body=msg)
 
 def writer(data):
     global sequence_num
@@ -40,6 +50,8 @@ def writer(data):
     output_triples.append(create_triple(timestamp_uri, RDF_URI, IOT_URI.format("Timestamp")))
     output_triples.append(create_triple(timestamp_uri, IOT_URI.format("ValueLiteral"),'"{}"^^{}'.format(ts_val, XML_DATETIME_URI)))
 
-    logging.error("\n".join(output_triples))
-
+    output_str = "\n".join(output_triples)
+    logging.error(output_str)
+    streamout_triple(output_str)
+    
     sequence_num += 1

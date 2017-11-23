@@ -24,7 +24,7 @@ dispatcher = dispatcher.Dispatcher()
 
 # Filter list of properties to cluster. Useful for debugging
 properties_to_filter = []
-properties_to_filter = ['_59_5']
+#properties_to_filter = ['_59_5']
 
 # RabbitMQ connection
 connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
@@ -32,7 +32,7 @@ channel = connection.channel()
 observations_queue = 'debs_observations'
 anomalies_queue = 'debs_anomalies'
 #channel.queue_declare(observations_queue, auto_delete=True)
-channel.queue_declare(anomalies_queue, auto_delete=True)
+#channel.queue_declare(anomalies_queue, auto_delete=True)
 TERMINATION_MESSAGE="~~TERMINATION MESSAGE~~"
 
 
