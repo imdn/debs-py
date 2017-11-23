@@ -16,7 +16,7 @@ class ObservationGroup(object):
         ob_list = []
         for oid in self.observations:
             observation = self.observations[oid]
-            ob_list.append((self.timestamp_id, observation.observed_property, observation.output_value))
+            ob_list.append((self.timestamp_id, self.timestamp_value, observation.observed_property, observation.output_value))
         return ob_list
     
     def print_info(self):

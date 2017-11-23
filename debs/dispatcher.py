@@ -3,6 +3,7 @@ import sys
 import logging
 from . import globals as global_vars
 from . import kmeans
+from . import output
 from collections import defaultdict
 
 #log_level=logging.DEBUG
@@ -34,7 +35,6 @@ class Dispatcher(object):
             force_run -- If True, dispatch event from current machine for processing even 
                          if the window is not full
         """
-
         if len(self.event_window[machine_id]) == global_vars.WINDOW_SIZE or force_run:
             # Window size for machine is full. Onward to clustering
             logging.info (f"Processing Machine with ID: {machine_id}; Observation Group: {obs_group_id}")
@@ -58,14 +58,15 @@ class Dispatcher(object):
         np.save('data.npy', adata)
 
         # Get unique observed properties
-        stateful_dims = np.unique(adata[:,1])
+        stateful_dims = np.unique(adata[:,2])
         for dim in stateful_dims:
             if len(global_vars.properties_to_filter) > 0 and dim not in global_vars.properties_to_filter:
                 continue
             # Extract values for a given observed property
-            observations_for_prop = adata[adata[:,1] == dim]
-            observed_values = observations_for_prop[:,2].astype(float)
+            observations_for_prop = adata[adata[:,2] == dim]
+            observed_values = observations_for_prop[:,3].astype(float)
             timestamp_ids = observations_for_prop[:,0]
+            timestamp_val = observations_for_prop[:,1]
             num_clusters = global_vars.get_machine_property(machine_id, dim, 'num_clusters')
             ts_start = timestamp_ids[0]
             ts_end = timestamp_ids[-1]
@@ -78,13 +79,22 @@ class Dispatcher(object):
             threshold_prob = global_vars.get_machine_property(machine_id, dim, 'prob_threshold')
             has_anomalies, abnormal_val_index, obs_probability = self.detect_anomalies(labels, trans_mat, threshold_prob)
             if has_anomalies:
-                abnormal_ts = timestamp_ids[abnormal_val_index]
-                if abnormal_ts not in self.anomalies[dim]:
-                    self.anomalies[dim].append(abnormal_ts)
-                    logging.warning(f"Anomalies observed in {machine_id:12}\tProperty: {dim:7}\tTimestamp: {abnormal_ts:16}\tP(observed): {obs_probability:22} vs. P(threshold): {threshold_prob}")
+                abnormal_ts_id = timestamp_ids[abnormal_val_index]
+                abnormal_ts_val = timestamp_val[abnormal_val_index]
+                if abnormal_ts_id not in self.anomalies[dim]:
+                    self.anomalies[dim].append(abnormal_ts_id)
+                    logging.warning(f"Anomalies observed in {machine_id:12}\tProperty: {dim:7}\tTimestamp: {abnormal_ts_id:16}\tP(observed): {obs_probability:22} vs. P(threshold): {threshold_prob}")
+                    anomaly_data = {
+                        'machine': machine_id,
+                        'dimension': dim,
+                        'timestamp_id': abnormal_ts_id,
+                        'timestamp_val': abnormal_ts_val,
+                        'probability': obs_probability
+                    }
+                    output.writer(anomaly_data)
                 else:
                     logging.debug("Skipping reporting of duplicated anomaly")
-                    logging.debug(f"Anomalies observed in {machine_id:12}\tProperty: {dim:7}\tTimestamp: {abnormal_ts:16}\tP(observed): {obs_probability:22} vs. P(threshold): {threshold_prob}")
+                    logging.debug(f"Anomalies observed in {machine_id:12}\tProperty: {dim:7}\tTimestamp: {abnormal_ts_id:16}\tP(observed): {obs_probability:22} vs. P(threshold): {threshold_prob}")
 
     
     def cluster_values(self, machine_id, dim, values, max_clusters):
