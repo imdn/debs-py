@@ -1,0 +1,8 @@
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix hobbit: <http://w3id.org/hobbit/vocab#> .
+
+<http://www.example.org/exampleSystem/MyOwnSystem> a  hobbit:SystemInstance; 
+	rdfs:label	"debs2017-py"@en;
+	rdfs:comment	"Attempting the DEBS2017 challenge with Python 3.6"@en;
+	hobbit:imageName "git.project-hobbit.eu:4567/md.imad/debs2017-py";
+	hobbit:implementsAPI <http://benchmark.org/MyNewBenchmark/BenchmarkApi> .
