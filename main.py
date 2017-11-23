@@ -1,20 +1,12 @@
 #!/usr/bin/python3
 
+import argparse
 import pickle
 import debs.globals as global_vars
 import debs.rdf.parse as parser
 from debs.dispatcher import Dispatcher
 
-metadata_file = "/home/imad/workspace/agt-challenge/test_data/18.04.2017.1molding_machine_308dp/molding_machine_308dp.metadata.nt"
-observations_file = "/home/imad/workspace/agt-challenge/test_data/18.04.2017.1molding_machine_308dp/molding_machine_308dp.nt"
-#observations_file = "/home/imad/workspace/agt-challenge/test_data/18.04.2017.1molding_machine_308dp/mini_obsgrp_25.nt"
-#metadata_file = "/home/imad/workspace/agt-challenge/test_data/10machines1000dp_static/10molding_machine_1000dp.metadata.nt"
-#observations_file = "/home/imad/workspace/agt-challenge/test_data/10machines1000dp_static/10molding_machine_1000dp.nt"
-#metadata_file = "/home/imad/workspace/agt-challenge/test_data/14.04.2017.1000molding_machine_final_metadata/1000molding_machine.metadata.nt"
-
-print (f"Metadata from - {metadata_file}\nObservations from - {observations_file}")
-
-def load_metadata(parse=False):
+def load_metadata(parse=False, metadata_file=None):
     """Load serialized metadata
     """
     if parse:
@@ -22,9 +14,9 @@ def load_metadata(parse=False):
          parser.parse_metadata_file(metadata_file)
          print("Done parsing metadata!")
     else:
-        print("Loading serialized metadata")
-        machine_datafile = 'machines_meta.pickle'
-        model_datafile = 'machine_models_meta.pickle'
+        print("Loading serialized metadata ...")
+        machine_datafile = 'metadata/machines_final_meta.pickle'
+        model_datafile = 'metadata/machine_models_final_meta.pickle'
         
         with open(machine_datafile, 'rb') as fp:
             global_vars.machines = pickle.load(fp)
@@ -52,20 +44,41 @@ def start_listening():
                                       no_ack=True)
     global_vars.channel.start_consuming()
 
+def test_run():
+    """Load metadata locally and use date from file
+    """
+    metadata_file = "../test_data/18.04.2017.1molding_machine_308dp/molding_machine_308dp.metadata.nt"
+    observations_file = "..//test_data/18.04.2017.1molding_machine_308dp/molding_machine_308dp.nt"
+    #observations_file = "..//test_data/18.04.2017.1molding_machine_308dp/mini_obsgrp_25.nt"
+    #metadata_file = "../test_data/10machines1000dp_static/10molding_machine_1000dp.metadata.nt"
+    #observations_file = "../test_data/10machines1000dp_static/10molding_machine_1000dp.nt"
+    #metadata_file = "../test_data/14.04.2017.1000molding_machine_final_metadata/1000molding_machine.metadata.nt"
+
+    print (f"Metadata from - {metadata_file}\nObservations from - {observations_file}")
+
+    load_metadata(parse=True, metadata_file=metadata_file)
+
+    with open(observations_file,'r') as fp:
+        for line in fp:
+            sub, pred, obj = parser.parse_triple(line.strip('\n'))
+            parser.process_observations(sub, pred, obj)
+
 def run():
-    load_metadata(parse=True)
-    
+    """Load metadata from serialized file and listedn to messages from incoming queue
+    """
+    load_metadata()
+
+    # Consume the message queue
     start_listening()
-    
-    # with open(observations_file,'r') as fp:
-    #      for line in fp:
-    #          sub, pred, obj = parser.parse_triple(line.strip('\n'))
-    #          parser.process_observations(sub, pred, obj)
 
-    # Stream Ended call dispatcher again
-    # myDispatcher.process_event(cur_machine, cur_obs_group, force_run=True)
+if __name__ == "__main__":
+    cli_parser = argparse.ArgumentParser()
+    cli_parser.add_argument('-t', '--testrun', action="store_true")
+    args = cli_parser.parse_args()
 
-#myDispatcher = Dispatcher()
-run()
+    if args.testrun:
+        test_run()
+    else:
+        run()
 
-global_vars.exit_gracefully()
+    global_vars.exit_gracefully()

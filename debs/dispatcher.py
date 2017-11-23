@@ -14,7 +14,7 @@ logging.basicConfig(filename='log.txt', filemode='w', level=log_level, format='%
 # Print Info messages to the console
 consoleHandler = logging.StreamHandler()
 consoleHandler.setLevel(logging.WARNING)
-logging.getLogger(__name__).addHandler(consoleHandler)
+logging.getLogger().addHandler(consoleHandler)
 
 
 class Dispatcher(object):
