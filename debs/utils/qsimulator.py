@@ -10,7 +10,7 @@ observations_queue = 'debs_observations'
 channel.queue_declare(observations_queue, auto_delete=True)
 TERMINATION_MESSAGE="~~TERMINATION MESSAGE~~"
 
-observations_file = "/home/imad/workspace/agt-challenge/test_data/18.04.2017.1molding_machine_308dp/molding_machine_308dp.nt"
+observations_file = "../test_data/18.04.2017.1molding_machine_308dp/molding_machine_308dp.nt"
 
 def stream_observations(observations_file):
     print ("Streaming observations")
