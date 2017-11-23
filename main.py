@@ -154,23 +154,33 @@ print (f"Metadata from - {metadata_file}\nObservations from - {observations_file
 run()
 
 
-# def csv_print():
-#     row_array = []
-#     for group in global_vars.event_map:
-#         col_array = []
-#         og = global_vars.event_map[group]
-#         col_array.append(og.machine_id)
-#         col_array.append(og.timestamp_value)
-#         for ob in og.observations:
-#             obs = og.observations[ob]
-#             col_array.append(obs.output_value)
-#         row_array.append(col_array)
+def csv_print():
+    row_array = []
+    headers = []
+    header_set = False
+    for group in global_vars.event_map:
+        col_array = []
+        og = global_vars.event_map[group]
+        col_array.append(og.machine_id)
+        col_array.append(og.timestamp_id)
+        for ob in og.observations:
+            obs = og.observations[ob]
+            col_array.append(obs.output_value)
+            if not header_set:
+                headers.append(obs.observed_property)
 
-#     import csv
-#     with open('test.csv', 'w', newline='') as csvfile:
-#         writer = csv.writer(csvfile)
-#         for row in row_array:
-#             writer.writerow(row)
+        if not header_set:
+            row_array.append(['', '', *headers])
+            header_set = True
+        
+        row_array.append(col_array)
+
+    import csv
+    with open('test_new.csv', 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        #writer.writerow(headers)
+        for row in row_array:
+            writer.writerow(row)
 
 #csv_print()
 #myDispatcher.print_info()
