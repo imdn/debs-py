@@ -1,16 +1,9 @@
 #!/usr/bin/python3
 
 import pickle
-import logging
 import debs.globals as global_vars
 import debs.rdf.parse as parser
 from debs.dispatcher import Dispatcher
-
-log_level=logging.WARNING
-#log_level=logging.DEBUG
-#log_level=logging.INFO
-logging.basicConfig(filename='dispatch.log', filemode='w', level=log_level, format='%(filename)s: %(message)s')
-
 
 metadata_file = "/home/imad/workspace/agt-challenge/test_data/18.04.2017.1molding_machine_308dp/molding_machine_308dp.metadata.nt"
 observations_file = "/home/imad/workspace/agt-challenge/test_data/18.04.2017.1molding_machine_308dp/molding_machine_308dp.nt"

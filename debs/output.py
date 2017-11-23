@@ -2,7 +2,7 @@ import logging
 
 outputHandler = logging.FileHandler('output.nt', mode='w')
 outputHandler.setLevel(logging.ERROR)
-logging.getLogger().addHandler(outputHandler)
+logging.getLogger(__name__).addHandler(outputHandler)
 
 sequence_num = 0
 
@@ -11,7 +11,6 @@ def create_triple(sub, pred, obj):
 
 def writer(data):
     global sequence_num
-    print ("In writer")
     DEBS_URI = "<http://project-hobbit.eu/resources/debs2017#{}>"
     RDF_URI = "<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>"
     MACHINE_URI ="<http://www.agtinternational.com/ontologies/I4.0#machine>"

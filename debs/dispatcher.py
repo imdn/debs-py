@@ -1,20 +1,20 @@
 import numpy as np
 import sys
-import logging
 from . import globals as global_vars
 from . import kmeans
 from . import output
+import logging
 from collections import defaultdict
 
-#log_level=logging.DEBUG
 log_level=logging.WARNING
+#log_level=logging.DEBUG
 #log_level=logging.INFO
-logging.basicConfig(filename='dispatch.log', filemode='w', level=log_level, format='Dispatcher.py: %(message)s')
+logging.basicConfig(filename='log.txt', filemode='w', level=log_level, format='%(filename)s: %(message)s')
 
 # Print Info messages to the console
 consoleHandler = logging.StreamHandler()
-consoleHandler.setLevel(logging.INFO)
-logging.getLogger().addHandler(consoleHandler)
+consoleHandler.setLevel(logging.WARNING)
+logging.getLogger(__name__).addHandler(consoleHandler)
 
 
 class Dispatcher(object):
