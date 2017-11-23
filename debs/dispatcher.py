@@ -55,7 +55,6 @@ class Dispatcher(object):
         for oid in self.event_window[machine_id]:
             data.extend(global_vars.event_map[oid].get_observations())
         adata = np.array(data)
-        np.save('data.npy', adata)
 
         # Get unique observed properties
         stateful_dims = np.unique(adata[:,2])
