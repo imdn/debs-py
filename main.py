@@ -4,7 +4,7 @@ import os
 import sys
 import re
 import asyncio
-import debs.globals as globals
+import debs.globals as global_vars
 import debs.rdf.parse as parser
 import debs.machine as mc
 import debs.observations as myobs
@@ -31,26 +31,26 @@ def process_metadata(a, b, c):
     if pred == "type":
         if obj == "MoldingMachine":
             # machine - type -> moldingMachine
-            globals.machines[sub] = mc.Machine(sub)
+            global_vars.machines[sub] = mc.Machine(sub)
             md_cur_machine = sub
         elif obj == "StatefulProperty":
-            globals.machine_models[md_cur_model].properties[sub].stateful = True
+            global_vars.machine_models[md_cur_model].properties[sub].stateful = True
     
     elif pred == "hasModel":
         # machine - hasModel -> machineModel
-        globals.machines[sub].model = obj
+        global_vars.machines[sub].model = obj
         md_cur_model = obj
-        if not obj in globals.machine_models:
-            globals.machine_models[obj] = mc.MachineModel()
+        if not obj in global_vars.machine_models:
+            global_vars.machine_models[obj] = mc.MachineModel()
 
     elif pred == "hasProperty":
         # machineModel - hasProperty -> property
-        globals.machine_models[sub].properties[obj] = mc.Property(obj)
+        global_vars.machine_models[sub].properties[obj] = mc.Property(obj)
         md_cur_property = obj
     
     elif pred == "hasNumberOfClusters":
         # prop - hasNumberOfClusters -> num_clusters
-        globals.machine_models[md_cur_model].properties[sub].num_clusters = int(obj)
+        global_vars.machine_models[md_cur_model].properties[sub].num_clusters = int(obj)
     
     elif pred == "valueLiteral":
         if sub.find('ProbabilityThreshold') >= 0:
@@ -59,7 +59,7 @@ def process_metadata(a, b, c):
 
     elif pred == "isThresholdForProperty":
         # ProbabilityThreshold_<id> - isThresholdForProperty -> <property_id>
-        globals.machine_models[md_cur_model].properties[obj].prob_threshold = md_cur_prob_threshold
+        global_vars.machine_models[md_cur_model].properties[obj].prob_threshold = md_cur_prob_threshold
 
 
 # Track latest values while parsing observations
@@ -85,7 +85,7 @@ def process_observations(a, b, c):
                 # Add old event to dispatcher
                 myDispatcher.process_event(cur_machine, cur_obs_group)
                 pass
-            globals.event_map[sub] = myobs.ObservationGroup(sub)
+            global_vars.event_map[sub] = myobs.ObservationGroup(sub)
             # (Re)set outputs and values maps
             outputs = dict()
             values = dict()
@@ -94,16 +94,16 @@ def process_observations(a, b, c):
             pass
     
     elif pred == 'observationResultTime':
-        globals.event_map[sub].timestamp_id = obj
+        global_vars.event_map[sub].timestamp_id = obj
 
     elif pred == 'machine':
-        globals.event_map[sub].machine_id = obj
+        global_vars.event_map[sub].machine_id = obj
         cur_machine = obj
     
     elif pred == 'contains':
         cur_observation_id = obj
         # Create observation object
-        globals.event_map[cur_obs_group].observations[obj] = myobs.Observation(obj)
+        global_vars.event_map[cur_obs_group].observations[obj] = myobs.Observation(obj)
 
     elif pred == 'hasValue':
         cur_value_id = obj
@@ -112,23 +112,23 @@ def process_observations(a, b, c):
         cur_output_id = obj
 
     elif pred == 'observedCycle':
-        globals.event_map[sub].cycle = obj
+        global_vars.event_map[sub].cycle = obj
     
     elif pred == 'observedProperty':
-        m_model = globals.machine_models[globals.machines[cur_machine].model]
+        m_model = global_vars.machine_models[global_vars.machines[cur_machine].model]
         # Only track stateful properties, else omit observing
         if not m_model.is_stateful_property(obj):
             skip_observation = True
-            del globals.event_map[cur_obs_group].observations[cur_observation_id]
+            del global_vars.event_map[cur_obs_group].observations[cur_observation_id]
         else:
             skip_observation = False
-            globals.event_map[cur_obs_group].observations[cur_observation_id].observed_property = obj
+            global_vars.event_map[cur_obs_group].observations[cur_observation_id].observed_property = obj
     
     elif pred == 'valueLiteral':
-        if sub.find('Timestamp') >= 0 and globals.event_map[cur_obs_group].timestamp_id == sub :
-            globals.event_map[cur_obs_group].timestamp_value = obj
+        if sub.find('Timestamp') >= 0 and global_vars.event_map[cur_obs_group].timestamp_id == sub :
+            global_vars.event_map[cur_obs_group].timestamp_value = obj
         elif sub.find('Value') >= 0 and not skip_observation:
-            globals.event_map[cur_obs_group].observations[cur_observation_id].output_value = obj
+            global_vars.event_map[cur_obs_group].observations[cur_observation_id].output_value = obj
 
 def run():
     count = 0
@@ -156,9 +156,9 @@ run()
 
 # def csv_print():
 #     row_array = []
-#     for group in globals.event_map:
+#     for group in global_vars.event_map:
 #         col_array = []
-#         og = globals.event_map[group]
+#         og = global_vars.event_map[group]
 #         col_array.append(og.machine_id)
 #         col_array.append(og.timestamp_value)
 #         for ob in og.observations:

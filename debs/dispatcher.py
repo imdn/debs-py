@@ -1,12 +1,12 @@
 import numpy as np
 import sys
 import logging
-from . import globals
+from . import globals as global_vars
 from . import kmeans
 from collections import defaultdict
 
-log_level=logging.DEBUG
-#log_level=logging.WARNING
+#log_level=logging.DEBUG
+log_level=logging.WARNING
 #log_level=logging.INFO
 logging.basicConfig(filename='dispatch.log', filemode='w', level=log_level, format='Dispatcher.py: %(message)s')
 
@@ -25,6 +25,7 @@ class Dispatcher(object):
         # Keep track of prev cluster centroids/machine and outgoing value from current window
         self.prev_clustering_result = defaultdict(dict)
         self.processed_events = defaultdict(list)
+        self.anomalies = defaultdict(list)
 
     def process_event(self, machine_id, obs_group_id, force_run=False):
         """ Dispatches events down the processing pipeline when window is full
@@ -34,10 +35,10 @@ class Dispatcher(object):
                          if the window is not full
         """
 
-        if len(self.event_window[machine_id]) == globals.WINDOW_SIZE or force_run:
+        if len(self.event_window[machine_id]) == global_vars.WINDOW_SIZE or force_run:
             # Window size for machine is full. Onward to clustering
             logging.info (f"Processing Machine with ID: {machine_id}; Observation Group: {obs_group_id}")
-            self.process_machine_stream(machine_id, obs_group_id)
+            self.process_machine_stream(machine_id)
             self.processed_events[machine_id].append(obs_group_id)
             # After run is over, remove the first observation group for the particular machine
             logging.debug (f"Removing observation group from window: {self.event_window[machine_id][0]}")
@@ -47,25 +48,25 @@ class Dispatcher(object):
         self.event_window[machine_id].append(obs_group_id)
 
     
-    def process_machine_stream(self, machine_id, obs_group_id):
+    def process_machine_stream(self, machine_id):
         """ Run the computation pipeline for a given machine for each stateful dimension """
         
         data = []
         for oid in self.event_window[machine_id]:
-            data.extend(globals.event_map[oid].get_observations())
+            data.extend(global_vars.event_map[oid].get_observations())
         adata = np.array(data)
         np.save('data.npy', adata)
 
         # Get unique observed properties
         stateful_dims = np.unique(adata[:,1])
         for dim in stateful_dims:
-            if len(globals.properties_to_filter) > 0 and dim not in globals.properties_to_filter:
+            if len(global_vars.properties_to_filter) > 0 and dim not in global_vars.properties_to_filter:
                 continue
             # Extract values for a given observed property
             observations_for_prop = adata[adata[:,1] == dim]
             observed_values = observations_for_prop[:,2].astype(float)
             timestamp_ids = observations_for_prop[:,0]
-            num_clusters = globals.get_machine_property(machine_id, dim, 'num_clusters')
+            num_clusters = global_vars.get_machine_property(machine_id, dim, 'num_clusters')
             ts_start = timestamp_ids[0]
             ts_end = timestamp_ids[-1]
             logging.debug(f"Now clustering observations for property {dim} between {ts_start}...{ts_end}")
@@ -74,11 +75,16 @@ class Dispatcher(object):
             trans_mat =self.build_transition_probability_matrix(labels, len(centroids))
             logging.debug (f"Transition Matrix\n{trans_mat}")
             logging.debug("Now detecting anomalies ...")
-            threshold_prob = globals.get_machine_property(machine_id, dim, 'prob_threshold')
+            threshold_prob = global_vars.get_machine_property(machine_id, dim, 'prob_threshold')
             has_anomalies, abnormal_val_index, obs_probability = self.detect_anomalies(labels, trans_mat, threshold_prob)
             if has_anomalies:
                 abnormal_ts = timestamp_ids[abnormal_val_index]
-                logging.warning(f"Anomalies observed in {machine_id:12}\tProperty: {dim:7}\tTimestamp: {abnormal_ts:16}\tP(observed): {obs_probability:22} vs. P(threshold): {threshold_prob}")
+                if abnormal_ts not in self.anomalies[dim]:
+                    self.anomalies[dim].append(abnormal_ts)
+                    logging.warning(f"Anomalies observed in {machine_id:12}\tProperty: {dim:7}\tTimestamp: {abnormal_ts:16}\tP(observed): {obs_probability:22} vs. P(threshold): {threshold_prob}")
+                else:
+                    logging.debug("Skipping reporting of duplicated anomaly")
+                    logging.debug(f"Anomalies observed in {machine_id:12}\tProperty: {dim:7}\tTimestamp: {abnormal_ts:16}\tP(observed): {obs_probability:22} vs. P(threshold): {threshold_prob}")
 
     
     def cluster_values(self, machine_id, dim, values, max_clusters):
@@ -117,7 +123,7 @@ class Dispatcher(object):
 
 
         if compute_kmeans:
-            centroids, ignored = kmeans.cluster(values, seeds, globals.KMEANS_MAX_ITERATIONS)
+            centroids, ignored = kmeans.cluster(values, seeds, global_vars.KMEANS_MAX_ITERATIONS)
             logging.debug (f"New centroids - {centroids}")
 
         labels = self.label_values(values, centroids)
@@ -164,7 +170,7 @@ class Dispatcher(object):
     def detect_anomalies(self, labels, trans_mat, threshold):
         """ Check if probability of observed sequence of transitions is above threshold """
         
-        N = globals.NUM_STATE_TRANSITIONS
+        N = global_vars.NUM_STATE_TRANSITIONS
         abnormal_value_index = None
         # Max number of possible state transitions is dependent of window size
         max_possible_transitions = len(labels) - 1
