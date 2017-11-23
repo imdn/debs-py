@@ -44,7 +44,3 @@ def writer(data):
     logging.error("\n".join(output_triples))
 
     sequence_num += 1
-
-    
-    
-    
