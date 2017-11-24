@@ -21,7 +21,7 @@ RUN pip install --trusted-host pypi.python.org numpy scipy pika
 RUN apt-get install -y openjdk-8-jre
 
 
-ADD ./benchmark_system/debs-parrotbenchmark-system-1.0-SNAPSHOT.jar /debs2017
+ADD . /debs2017
 
 # Run app.py when the container launches
 CMD [ "java -jar debs-parrotbenchmark-system-1.0-SNAPSHOT.jar" ]
