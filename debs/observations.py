@@ -1,3 +1,10 @@
+"""
+Class to store the events as they are streamed in.
+
+An event is captured in a single observation group containing
+ multiple observations at a given timestamp
+"""
+   
 class ObservationGroup(object):
     def __init__(self, id):
         self.group_id = id
@@ -11,7 +18,7 @@ class ObservationGroup(object):
         """ Return observations  in current observation group
 
         Observations are returned as a list of tuples.
-        Each tuple contains (TimestampId, ObservedProperty, Value)
+        Each tuple contains (TimestampId, TimestampValue, ObservedProperty, Value)
         """
         ob_list = []
         for oid in self.observations:
