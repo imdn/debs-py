@@ -1,0 +1,9 @@
+ENV JAVA_VER 8
+ENV JAVA_HOME /usr/lib/jvm/java-8-openjdk-amd64
+
+# DEBS SPECIFIC ENV_VARS
+ENV HOBBIT_SYSTEM_URI=http://project-hobbit.eu/resources/debs2017/PyDEBS2017
+ENV HOBBIT_RABBIT_HOST=rabbit
+ENV HOBBIT_SESSION_ID=exp1
+ENV SYSTEM_PARAMETERS_MODEL={}
+ENV HOBBIT_EXPERIMENT_URI=http://example.com/exp1
