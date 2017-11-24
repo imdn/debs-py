@@ -76,6 +76,7 @@ if __name__ == "__main__":
     cli_parser.add_argument('-t', '--testrun', action="store_true")
     args = cli_parser.parse_args()
 
+    global_vars.init_connections()
     if args.testrun:
         test_run()
     else:
