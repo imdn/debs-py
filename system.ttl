@@ -6,8 +6,8 @@
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 @prefix owl: <http://www.w3.org/2002/07/owl#> .
 
-<http://project-hobbit.eu/resources/debs2017/mdimad> a  hobbit:SystemInstance; 
-	rdfs:label	"DEBS 2017 Py"@en;
+<http://project-hobbit.eu/resources/debs2017/PyDEBS2017> a  hobbit:SystemInstance; 
+	rdfs:label	"PyDEBS2017"@en;
 	rdfs:comment	"Attempting the DEBS2017 challenge with Python 3.6"@en;
-	hobbit:imageName "git.project-hobbit.eu:4567/md.imad/debs2017-py";
-	hobbit:implementsAPI <http://benchmark.org/MyNewBenchmark/BenchmarkApi> .
+	hobbit:implementsAPI <http://www.example.org/exampleBenchmark/debsAPI>;
+	hobbit:imageName "git.project-hobbit.eu:4567/md.imad/debs2017-py" .
