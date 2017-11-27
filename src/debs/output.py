@@ -1,34 +1,36 @@
 import logging
+import os
 from . import globals as global_vars
 
 outputHandler = logging.FileHandler('output.nt', mode='w')
 outputHandler.setLevel(logging.ERROR)
 logging.getLogger(__name__).addHandler(outputHandler)
 
+SYSTEM_URI = os.environ['SYSTEM_URI_KEY']
+DEBS_URI = f"<{SYSTEM_URI}#{{}}>"
+RDF_URI = "<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>"
+MACHINE_URI ="<http://www.agtinternational.com/ontologies/I4.0#machine>"
+IOT_URI = "<http://www.agtinternational.com/ontologies/IoTCore#{}>"
+RESULT_URI = "<http://www.agtinternational.com/ontologies/DEBSAnalyticResults#{}>"
+WMM_URI = "<http://www.agtinternational.com/ontologies/WeidmullerMetadata#{}>"
+XML_DOUBLE_URI = "<http://www.w3.org/2001/XMLSchema#double>"
+XML_DATETIME_URI = "<http://www.w3.org/2001/XMLSchema#dateTime>"
+
 sequence_num = 0
 
 def create_triple(sub, pred, obj):
     return f"{sub} {pred} {obj} ."
 
-def streamout_triple(msg):
+def send_to_output_stream(msg):
     """Dispatch message to queue
     """
-    queue = global_vars.anomalies_queue
-    global_vars.channel.queue_declare(queue, auto_delete=True)    
-    global_vars.channel.basic_publish(exchange='',
+    queue = global_vars.output_queue
+    global_vars.output_channel.basic_publish(exchange='',
                                       routing_key=queue,
                                       body=msg)
 
 def writer(data):
     global sequence_num
-    DEBS_URI = "<http://project-hobbit.eu/resources/debs2017#{}>"
-    RDF_URI = "<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>"
-    MACHINE_URI ="<http://www.agtinternational.com/ontologies/I4.0#machine>"
-    IOT_URI = "<http://www.agtinternational.com/ontologies/IoTCore#{}>"
-    RESULT_URI = "<http://www.agtinternational.com/ontologies/DEBSAnalyticResults#{}>"
-    WMM_URI = "<http://www.agtinternational.com/ontologies/WeidmullerMetadata#{}>"
-    XML_DOUBLE_URI = "<http://www.w3.org/2001/XMLSchema#double>"
-    XML_DATETIME_URI = "<http://www.w3.org/2001/XMLSchema#dateTime>"
     output_triples = []
 
     machine = data['machine']
@@ -51,7 +53,6 @@ def writer(data):
     output_triples.append(create_triple(timestamp_uri, IOT_URI.format("ValueLiteral"),'"{}"^^{}'.format(ts_val, XML_DATETIME_URI)))
 
     output_str = "\n".join(output_triples)
-    logging.error(output_str)
-    streamout_triple(output_str)
-    
+    #logging.error(output_str)
+    send_to_output_stream(output_str)
     sequence_num += 1
