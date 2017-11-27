@@ -1,4 +1,4 @@
-from . import globals as global_vars
+from .. import globals as global_vars
 
 def serialize_metadata():
     """Pickle metadata for easy loading/unloading
