@@ -6,9 +6,9 @@ import pika
 connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
 channel = connection.channel()
 
-observations_queue = 'debs_observations'
+observations_queue = 'hobbit.datagen-system.1511785419368'
 channel.queue_declare(observations_queue, auto_delete=True)
-TERMINATION_MESSAGE="~~TERMINATION MESSAGE~~"
+TERMINATION_MESSAGE="~~Termination Message~~"
 
 observations_file = "../test_data/18.04.2017.1molding_machine_308dp/molding_machine_308dp.nt"
 
@@ -29,3 +29,6 @@ def stream_observations(observations_file):
 
 
 stream_observations(observations_file)
+
+channel.close()
+connection.close()
