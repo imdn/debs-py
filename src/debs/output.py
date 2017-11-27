@@ -1,5 +1,6 @@
 import logging
 import os
+import pika
 from . import globals as global_vars
 
 outputHandler = logging.FileHandler('output.nt', mode='w')
