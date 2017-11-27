@@ -36,7 +36,7 @@ def parse_message(ch, method, properties, body):
         parser.process_observations(sub, pred, obj)
 
 def start_listening():
-    queue = global_vars.observations_queue
+    queue = global_vars.input_queue
     print(f"Listening for messages on queue - {queue}")
     global_vars.channel.queue_declare(queue, auto_delete=True)
     global_vars.channel.basic_consume(parse_message,
@@ -66,6 +66,8 @@ def test_run():
 def run():
     """Load metadata from serialized file and listedn to messages from incoming queue
     """
+
+    print ("Step1: Load metadata")
     load_metadata()
 
     # Consume the message queue
