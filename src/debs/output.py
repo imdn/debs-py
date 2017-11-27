@@ -26,8 +26,11 @@ def send_to_output_stream(msg):
     """
     queue = global_vars.output_queue
     global_vars.output_channel.basic_publish(exchange='',
-                                      routing_key=queue,
-                                      body=msg)
+                                             routing_key=queue,
+                                             body=msg,
+                                             properties=pika.BasicProperties(
+                                                 delivery_mode = 2 # make message persistent
+                                             ))
 
 def writer(data):
     global sequence_num
