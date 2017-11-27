@@ -3,11 +3,18 @@
 import argparse
 import pickle
 import struct
+import sys
+import urllib.request
 import debs.globals as global_vars
 import debs.rdf.parse as parser
 import debs.output as output
 import debs.utils.utils as utils
 from debs.dispatcher import Dispatcher
+from datetime import datetime
+
+def remote_log(message):
+    url=f"http://imdn.pythonanywhere.com/msg/{message}"
+    urllib.request.urlopen(url)
 
 def load_metadata(parse=False, metadata_file=None):
     """Load serialized metadata
@@ -31,10 +38,13 @@ def load_metadata(parse=False, metadata_file=None):
 
 def parse_message(ch, method, properties, body):
     message = body.decode()
+    #remote_log(f'Input Message - {message}')
+    ch.basic_ack(delivery_tag=method.delivery_tag)
     if message == global_vars.TERMINATION_MESSAGE:
         parser.cleanup()
         global_vars.input_channel.stop_consuming()
         print ("Finished stream processing")
+        remote_log("Input Stream Ended")
     else:
         triples_str = message.strip('\n')
         sub, pred, obj = parser.parse_triple(triples_str)
@@ -43,14 +53,15 @@ def parse_message(ch, method, properties, body):
 def start_listening():
     queue = global_vars.input_queue
     print(f"Listening for messages on queue - {queue}")
-    global_vars.input_channel.queue_declare(queue, auto_delete=True)
+    remote_log(f'Listening for messages on queue - {queue}')
+    #global_vars.input_channel.queue_declare(queue, auto_delete=True)
     global_vars.input_channel.basic_consume(parse_message,
-                                      queue=queue,
-                                      no_ack=True)
+                                            queue=queue)
     global_vars.input_channel.start_consuming()
 
 def cmd_callback(ch, method, properties, body):
-    print (f"Received body - {body}")
+    print (f"Received command - {body}")
+    remote_log(f"CMD_QUEUE sent - {body}")
     len, sess_id, cmd = global_vars.unpack_cmd_queue_msg(body)
     if sess_id.decode('utf-8') == global_vars.session_id:
         if cmd == global_vars.TASK_GENERATION_FINISHED:
@@ -94,6 +105,7 @@ def close():
     """Send termination message to output stream and exit
     """
     print ("Sending TERMINATION_MESSAGE to output stream ...")
+    remote_log('Waiting for TASK_GEN_FINISH')
     output.send_to_output_stream(global_vars.TERMINATION_MESSAGE)
     global_vars.exit_gracefully()
 
@@ -101,27 +113,39 @@ def run():
     """Load metadata from serialized file and listen to messages from incoming queue
     """
     print (f"Sending SYSTEM_READY_SIGNAL ...")
+    remote_log('Sending SYSTEM_READY')
+    
     global_vars.send_to_cmd_queue(global_vars.SYSTEM_READY_SIGNAL)
 
-    load_metadata()
-
+    remote_log('Waiting for TASK_GENERATION_FINISHED')
     print ("Waiting for TASK_GENERATION_FINISHED ...")
+
     wait_for_task_generation()
 
+    remote_log('Loading METADATA')
+    load_metadata()
+    
     # Consume the message queue
     start_listening()
 
 if __name__ == "__main__":
-    cli_parser = argparse.ArgumentParser()
-    cli_parser.add_argument('-t', '--testrun', action="store_true")
-    args = cli_parser.parse_args()
+    try:
+        cli_parser = argparse.ArgumentParser()
+        cli_parser.add_argument('-t', '--testrun', action="store_true")
+        args = cli_parser.parse_args()
 
-    print ("Initializing System Connetions ...")
-    global_vars.init_connections()
-    
-    if args.testrun:
-        test_run()
-    else:
-        run()
-        
-        close()
+        print ("Initializing System Connections ...")
+        remote_log('Initializing connections - {}'.format(datetime.now()))
+        global_vars.init_connections()
+        remote_log(f'MQ_HostName - {global_vars.mq_hostname}; SESSION_ID - {global_vars.session_id}')
+
+        if args.testrun:
+            test_run()
+        else:
+            run()
+
+            close()
+    except:
+        e = sys.exc_info()[0]
+        print(e)
+        remote_log(e)
