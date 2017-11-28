@@ -13,7 +13,7 @@ RUN apt-get install -y openjdk-8-jre
 # Layer it for easier deployment on Docker
 ADD src/ run.sh /debs2017/
 COPY metadata /debs2017/metadata
-#ADD debs-parrotbenchmark-system-1.0-SNAPSHOT.jar /debs2017/
+ADD debs-parrotbenchmark-system-1.0-SNAPSHOT.jar /debs2017/
 
 ENV JAVA_VER 8
 ENV JAVA_HOME /usr/lib/jvm/java-8-openjdk-amd64
@@ -32,5 +32,5 @@ ENV HOBBIT_EXPERIMENT_URI_KEY="http://project-hobbit.eu/resources/debs2017/exper
 #ENV HOBBIT_EXPERIMENT_URI=http://example.com/exp1
 
 # Run app.py when the container launches
-CMD [ "./run.sh" ]
-#CMD ["java", "-cp", "debs-parrotbenchmark-system-1.0-SNAPSHOT.jar", "romromov.DebsParrotBenchmarkSystemRunner"]
+#CMD [ "./run.sh" ]
+CMD ["java", "-cp", "debs-parrotbenchmark-system-1.0-SNAPSHOT.jar", "romromov.DebsParrotBenchmarkSystemRunner"]
