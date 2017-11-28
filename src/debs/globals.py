@@ -89,8 +89,8 @@ def init_connections():
                                  exchange_type='fanout',
                                  durable=False,
                                  auto_delete=True)
-    input_channel.queue_declare(input_queue, auto_delete=True)
-    output_channel.queue_declare(output_queue, auto_delete=True)
+    input_channel.queue_declare(queue=input_queue, auto_delete=True)
+    output_channel.queue_declare(queue=output_queue, auto_delete=True)
 
 
 def exit_gracefully():
