@@ -56,7 +56,8 @@ def writer(data):
     output_triples.append(create_triple(timestamp_uri, RDF_URI, IOT_URI.format("Timestamp")))
     output_triples.append(create_triple(timestamp_uri, IOT_URI.format("ValueLiteral"),'"{}"^^{}'.format(ts_val, XML_DATETIME_URI)))
 
-    output_str = "\n".join(output_triples)
+    #output_str = "\n".join(output_triples)
     #logging.error(output_str)
-    send_to_output_stream(output_str)
+    for triple in output_triples:
+        send_to_output_stream(triple)
     sequence_num += 1
