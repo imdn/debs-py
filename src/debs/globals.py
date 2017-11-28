@@ -1,7 +1,7 @@
 """
 Global variables to share across files
 """
-import pika
+import rabbitpy
 import os
 import struct
 from collections import OrderedDict
@@ -39,7 +39,7 @@ session_id = os.environ['HOBBIT_SESSION_ID']
 TERMINATION_MESSAGE="~~Termination Message~~"
 SYSTEM_READY_SIGNAL = b'\x01'
 TASK_GENERATION_FINISHED = b'\x0F'
-CMD_EXCHANGE = 'hobbit.command'
+CMD_EXCHANGE_NAME = 'hobbit.command'
 
 def construct_cmd_queue_msg(signal):
     """
@@ -68,30 +68,44 @@ def unpack_cmd_queue_msg(msg):
 
 def send_to_cmd_queue(message):
     global cmd_channel
-    cmd_channel.basic_publish(exchange=CMD_EXCHANGE,
-                              routing_key='',
-                              body=construct_cmd_queue_msg(message))
+    body = construct_cmd_queue_msg(message)
+    message_obj = rabbitpy.Message(cmd_channel, body)
+    message_obj.publish(cmd_exchange)
 
 def init_connections():
     """Intialize connections"""
-    global connection, input_channel, output_channel, cmd_channel, input_queue, output_queue
+    global connection, input_channel, output_channel, cmd_channel
+    global cmd_exchange, input_queue, output_queue, cmd_queue
 
-    input_queue = f"hobbit.datagen-system.{session_id}"
-    output_queue = f"hobbit.system-evalstore.{session_id}"
-    
-    connection = pika.BlockingConnection(pika.ConnectionParameters(mq_hostname))
+    mq_port = 5672
+    input_queue_name = f"hobbit.datagen-system.{session_id}"
+    output_queue_name = f"hobbit.system-evalstore.{session_id}"
+
+    connection_str = f"amqp://guest:guest@{mq_hostname}:{mq_port}/"
+    connection = rabbitpy.Connection(connection_str)
+    cmd_channel = connection.channel()
     input_channel = connection.channel()
     output_channel = connection.channel()
-    cmd_channel = connection.channel()
-    input_channel.basic_qos(prefetch_count=1)
-    output_channel.basic_qos(prefetch_count=1)
-    cmd_channel.exchange_declare(exchange=CMD_EXCHANGE,
-                                 exchange_type='fanout',
-                                 durable=False,
-                                 auto_delete=True)
-    input_channel.queue_declare(queue=input_queue, auto_delete=True)
-    output_channel.queue_declare(queue=output_queue, auto_delete=True)
+    input_channel.prefetch_count(1)
+    output_channel.prefetch_count(1)
+    cmd_exchange = rabbitpy.Exchange(cmd_channel,
+                                     CMD_EXCHANGE_NAME,
+                                     exchange_type='fanout',
+                                     durable=False,
+                                     auto_delete=True)
+    cmd_exchange.declare()
 
+    cmd_queue = rabbitpy.Queue(cmd_channel, exclusive=True)
+    input_queue = rabbitpy.Queue(input_channel,
+                                 input_queue_name,
+                                 auto_delete=True)
+    output_queue = rabbitpy.Queue(output_channel,
+                                  output_queue_name,
+                                  auto_delete=True)
+    cmd_queue.declare()
+    cmd_queue.bind(cmd_exchange)
+    input_queue.declare()
+    output_queue.declare()
 
 def exit_gracefully():
     """Shutdown all connections etc. before terminating

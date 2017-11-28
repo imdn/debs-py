@@ -4,6 +4,7 @@ import argparse
 import pickle
 import struct
 import sys
+import threading
 import urllib.request
 import debs.globals as global_vars
 import debs.rdf.parse as parser
@@ -50,14 +51,11 @@ def parse_message(ch, method, properties, body):
         sub, pred, obj = parser.parse_triple(triples_str)
         parser.process_observations(sub, pred, obj)
 
-def start_listening():
-    queue = global_vars.input_queue
-    print(f"Listening for messages on queue - {queue}")
-    remote_log(f'Listening for messages on queue - {queue}')
-    #global_vars.input_channel.queue_declare(queue, auto_delete=True)
-    global_vars.input_channel.basic_consume(parse_message,
-                                            queue=queue)
-    global_vars.input_channel.start_consuming()
+def input_queue_consumer():
+    for message in global_vars.input_queue:
+        content = message.body.decode('utf-8')
+        print (f'message: {content}')
+        message.ack()
 
 def cmd_callback(ch, method, properties, body):
     print (f"Received command - {body}")
@@ -69,17 +67,11 @@ def cmd_callback(ch, method, properties, body):
 
 
     
-def wait_for_task_generation():
-    result = global_vars.cmd_channel.queue_declare(exclusive=True)
-    queue_name = result.method.queue
-
-    global_vars.cmd_channel.queue_bind(exchange = global_vars.CMD_EXCHANGE,
-                                       queue=queue_name)
-
-    global_vars.cmd_channel.basic_consume(cmd_callback,
-                                          queue=queue_name,
-                                          no_ack=True)
-    global_vars.cmd_channel.start_consuming()
+def cmd_queue_consumer():
+    #global_vars.cmd_channel.start_consuming()
+    for message in global_vars.cmd_queue:
+        #print (f"Message on command_channel: {message}")
+        message.pprint()
 
 
 def test_run():
@@ -120,14 +112,20 @@ def run():
     remote_log('Waiting for TASK_GENERATION_FINISHED')
     print ("Waiting for TASK_GENERATION_FINISHED ...")
 
-    wait_for_task_generation()
+    kwargs = { 'connection' : global_vars.connection }
+
+    # Consume the message queue
+    input_queue_thread = threading.Thread(target=input_queue_consumer)
+    input_queue_thread.start()
+
+    cmd_thread = threading.Thread(target=cmd_queue_consumer)
+    cmd_thread.start()
 
     remote_log('Loading METADATA')
     load_metadata()
     
-    # Consume the message queue
-    start_listening()
-
+    input_queue_thread.join()
+    
 if __name__ == "__main__":
     try:
         cli_parser = argparse.ArgumentParser()

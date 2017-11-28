@@ -1,6 +1,6 @@
 import logging
 import os
-import pika
+import rabbitpy
 from . import globals as global_vars
 
 outputHandler = logging.FileHandler('output.nt', mode='w')
@@ -22,18 +22,22 @@ sequence_num = 0
 def create_triple(sub, pred, obj):
     return f"{sub} {pred} {obj} ."
 
-def send_to_output_stream(msg):
-    """Dispatch message to queue
-    """
+def send_to_output_stream(msg_body):
+    """Dispatch message to queue"""
+    
     queue = global_vars.output_queue
-    global_vars.output_channel.basic_publish(exchange='',
-                                             routing_key=queue,
-                                             body=msg,
-                                             properties=pika.BasicProperties(
-                                                 delivery_mode = 2 # make message persistent
-                                             ))
+    properties = {
+        'delivery_mode' : 2 # Make message persistent
+    }
+    message = rabbitpy.Message(global_vars.output_channel,
+                               msg_body,
+                               properties=prop)
+    message.publish('', routing_key=queue)
+
 
 def writer(data):
+    """Create output triples and send them to be delivered"""
+    
     global sequence_num
     output_triples = []
 
