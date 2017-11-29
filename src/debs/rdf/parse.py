@@ -1,3 +1,4 @@
+import threading
 from .. import machine as mc
 from .. import observations as myobs
 from .. import globals as global_vars

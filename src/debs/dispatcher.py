@@ -1,9 +1,9 @@
+import logging
 import numpy as np
 import sys
 from . import globals as global_vars
 from . import kmeans
 from . import output
-import logging
 from collections import defaultdict
 
 log_level=logging.WARNING

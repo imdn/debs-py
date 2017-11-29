@@ -11,6 +11,7 @@ channel.queue_declare(observations_queue, auto_delete=True)
 TERMINATION_MESSAGE="~~Termination Message~~"
 
 observations_file = "../test_data/18.04.2017.1molding_machine_308dp/molding_machine_308dp.nt"
+#observations_file = "../test_data/18.04.2017.1molding_machine_308dp/mini.nt"
 
 def stream_observations(observations_file):
     print ("Streaming observations")

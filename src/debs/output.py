@@ -1,6 +1,7 @@
 import logging
 import os
 import rabbitpy
+import threading
 from . import globals as global_vars
 
 outputHandler = logging.FileHandler('output.nt', mode='w')
@@ -24,20 +25,23 @@ def create_triple(sub, pred, obj):
 
 def send_to_output_stream(msg_body):
     """Dispatch message to queue"""
-    
-    queue = global_vars.output_queue
     properties = {
         'delivery_mode' : 2 # Make message persistent
     }
     message = rabbitpy.Message(global_vars.output_channel,
                                msg_body,
-                               properties=prop)
-    message.publish('', routing_key=queue)
+                               properties=properties)
+    message.publish('', routing_key=global_vars.OUTPUT_QUEUE_NAME)
 
 
 def writer(data):
+    """Wraps the create_and_write def by sending it to a different thread"""
+    print(f"Writing output on separate thread : {data}")
+    output_worker = threading.Thread(target=create_and_write, args=[data], name='Output-Writer-Thread')
+    output_worker.start()
+
+def create_and_write(data):
     """Create output triples and send them to be delivered"""
-    
     global sequence_num
     output_triples = []
 
