@@ -5,6 +5,7 @@ import pickle
 import threading
 import time
 import urllib.request
+from urllib.error import URLError, HTTPError
 import debs.globals as global_vars
 import debs.rdf.parse as parser
 import debs.output as output
@@ -13,8 +14,14 @@ from datetime import datetime
 
 def remote_log(message):
     url=f"http://imdn.pythonanywhere.com/msg/{message}"
-    urllib.request.urlopen(url)
-    time.sleep(1)
+    try:
+        urllib.request.urlopen(url)
+    except HTTPError as e:
+        print('Error code: ', e.code)
+    except URLError as e:
+        print('Reason: ', e.reason)
+    finally:
+        time.sleep(1)
 
 def load_metadata(parse=False, metadata_file=None):
     """Load serialized metadata"""
@@ -133,7 +140,7 @@ if __name__ == "__main__":
     termination_message_barrier = threading.Barrier(2)
 
     print ("Initializing System Connections ...")
-    remote_log('\nInitializing connections - {}'.format(datetime.now()))
+    remote_log('Initializing connections - {}'.format(datetime.now()))
     global_vars.init_connections()
     remote_log(f'MQ_HOSTNAME - {global_vars.MQ_HOSTNAME}; SESSION_ID - {global_vars.SESSION_ID}')
 
