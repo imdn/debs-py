@@ -48,16 +48,17 @@ def parse_message_body(content):
         parser.cleanup()
         print (f"Input stream ended due to {content}")
         remote_log (f"Input stream ended due to {content}")
-        return global_vars.TERMINATION_MESSAGE
+        return True
     else:
         triples_str = content.strip('\n')
         sub, pred, obj = parser.parse_triple(triples_str)
         parser.process_observations(sub, pred, obj)
-        return None
+        return False
 
+counter=0
 def input_queue_consumer():
     """Consume data from input queue on a separate thread"""
-    # Consume the message queue
+    global counter
     start_execution_barrier.wait()
     queue_name = global_vars.INPUT_QUEUE_NAME
     print (f"Waiting for message on {queue_name}...")
@@ -66,11 +67,14 @@ def input_queue_consumer():
     remote_log (f"Queue stats: Num Messages = {num_messages}; Num Consumers = {num_consumers}")
     
     for message in global_vars.input_queue:
-        message.ack()
+        counter += 1
         content = message.body.decode('utf-8')
+        if counter < 4:
+            print(f"Input Queue msg#{counter}: {content}")
+            remote_log(f"Input Queue message#{counter}: {content}")
+        message.ack()
         terminate = parse_message_body(content)
-        if terminate == global_vars.TERMINATION_MESSAGE:
-            remote_log (f"{terminate} received on {queue_name}...")
+        if terminate:
             termination_message_barrier.wait()
             return
 
