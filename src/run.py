@@ -3,6 +3,7 @@
 import argparse
 import pickle
 import threading
+import time
 import urllib.request
 import debs.globals as global_vars
 import debs.rdf.parse as parser
@@ -11,9 +12,9 @@ import debs.utils.utils as utils
 from datetime import datetime
 
 def remote_log(message):
-    #url=f"http://imdn.pythonanywhere.com/msg/{message}"
-    #urllib.request.urlopen(url)
-    pass
+    url=f"http://imdn.pythonanywhere.com/msg/{message}"
+    urllib.request.urlopen(url)
+    time.sleep(1)
 
 def load_metadata(parse=False, metadata_file=None):
     """Load serialized metadata"""
@@ -53,6 +54,7 @@ def input_queue_consumer():
     start_execution_barrier.wait()
     queue_name = global_vars.INPUT_QUEUE_NAME
     print (f"Waiting for message on {queue_name}...")
+    remote_log (f"Waiting for message on {queue_name}...")
     for message in global_vars.input_queue:
         message.ack()
         content = message.body.decode('utf-8')
@@ -69,6 +71,7 @@ def cmd_queue_consumer():
         len, sess_id, cmd = global_vars.unpack_cmd_queue_msg(message.body)
         if cmd == global_vars.TASK_GENERATION_FINISHED:
             print (f"TASK_GENERATION_FINISHED... ")
+            remote_log("TASK_GENERATION_FINISHED...")
             # Countdown barrier to execution now task task generation's finished
             start_execution_barrier.wait() 
             return
@@ -130,7 +133,7 @@ if __name__ == "__main__":
     termination_message_barrier = threading.Barrier(2)
 
     print ("Initializing System Connections ...")
-    remote_log('Initializing connections - {}'.format(datetime.now()))
+    remote_log('\nInitializing connections - {}'.format(datetime.now()))
     global_vars.init_connections()
     remote_log(f'MQ_HOSTNAME - {global_vars.MQ_HOSTNAME}; SESSION_ID - {global_vars.SESSION_ID}')
 
