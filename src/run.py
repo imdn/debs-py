@@ -61,12 +61,16 @@ def input_queue_consumer():
     start_execution_barrier.wait()
     queue_name = global_vars.INPUT_QUEUE_NAME
     print (f"Waiting for message on {queue_name}...")
-    remote_log (f"Waiting for message on {queue_name}...")
+    remote_log (f"Waiting for message on queue: {queue_name}...")
+    num_messages, num_consumers = global_vars.input_queue.declare(passive=True)
+    remote_log (f"Queue stats: Num Messages = {num_messages}; Num Consumers = {num_consumers}")
+    
     for message in global_vars.input_queue:
         message.ack()
         content = message.body.decode('utf-8')
         terminate = parse_message_body(content)
         if terminate == global_vars.TERMINATION_MESSAGE:
+            remote_log (f"{terminate} received on {queue_name}...")
             termination_message_barrier.wait()
             return
 
@@ -140,7 +144,9 @@ if __name__ == "__main__":
     termination_message_barrier = threading.Barrier(2)
 
     print ("Initializing System Connections ...")
-    remote_log('Initializing connections - {}'.format(datetime.now()))
+    remote_log('======  Log Generated (new format) at {} ====='.format(datetime.now()))
+    
+    remote_log('Initializing connections...')
     global_vars.init_connections()
     remote_log(f'MQ_HOSTNAME - {global_vars.MQ_HOSTNAME}; SESSION_ID - {global_vars.SESSION_ID}')
 
