@@ -34,12 +34,14 @@ def get_machine_property(machine_id, prop_id, prop_name):
     return getattr(properties, prop_name)
 
 # HOBBIT Platform Specific
-mq_hostname = os.environ['HOBBIT_RABBIT_HOST'] 
-session_id = os.environ['HOBBIT_SESSION_ID']
+MQ_HOSTNAME = os.environ['HOBBIT_RABBIT_HOST'] 
+SESSION_ID = os.environ['HOBBIT_SESSION_ID']
 TERMINATION_MESSAGE="~~Termination Message~~"
 SYSTEM_READY_SIGNAL = b'\x01'
 TASK_GENERATION_FINISHED = b'\x0F'
 CMD_EXCHANGE_NAME = 'hobbit.command'
+INPUT_QUEUE_NAME = f"hobbit.datagen-system.{SESSION_ID}"
+OUTPUT_QUEUE_NAME = f"hobbit.system-evalstore.{SESSION_ID}"
 
 def construct_cmd_queue_msg(signal):
     """
@@ -50,7 +52,7 @@ def construct_cmd_queue_msg(signal):
     Byte s+1 - s+2: Command
     Byte s+3 : Data if any (ignored here)
     """
-    session_id_bytes = session_id.encode('utf-8')
+    session_id_bytes = SESSION_ID.encode('utf-8')
     length = len(session_id_bytes)
     format_string = f">i{length}sc"
     byte_buffer = struct.pack(format_string, length, session_id_bytes, signal)
@@ -58,7 +60,7 @@ def construct_cmd_queue_msg(signal):
     return byte_buffer
 
 def unpack_cmd_queue_msg(msg):
-    session_id_bytes = session_id.encode('utf-8')
+    session_id_bytes = SESSION_ID.encode('utf-8')
     length = len(session_id_bytes)
     payload_length = length + 5 # SessionId bytes + 4 length bytes + 1 cmd byte
     trimmed_message = bytearray(msg)[0:payload_length]
@@ -78,10 +80,8 @@ def init_connections():
     global cmd_exchange, input_queue, output_queue, cmd_queue
 
     mq_port = 5672
-    input_queue_name = f"hobbit.datagen-system.{session_id}"
-    output_queue_name = f"hobbit.system-evalstore.{session_id}"
 
-    connection_str = f"amqp://guest:guest@{mq_hostname}:{mq_port}/"
+    connection_str = f"amqp://guest:guest@{MQ_HOSTNAME}:{mq_port}/"
     connection = rabbitpy.Connection(connection_str)
     cmd_channel = connection.channel()
     input_channel = connection.channel()
@@ -97,10 +97,10 @@ def init_connections():
 
     cmd_queue = rabbitpy.Queue(cmd_channel, exclusive=True)
     input_queue = rabbitpy.Queue(input_channel,
-                                 input_queue_name,
+                                 INPUT_QUEUE_NAME,
                                  auto_delete=True)
     output_queue = rabbitpy.Queue(output_channel,
-                                  output_queue_name,
+                                  OUTPUT_QUEUE_NAME,
                                   auto_delete=True)
     cmd_queue.declare()
     cmd_queue.bind(cmd_exchange)
