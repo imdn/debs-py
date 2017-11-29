@@ -32,11 +32,11 @@ def send_to_output_stream(msg_body):
                                msg_body,
                                properties=properties)
     message.publish('', routing_key=global_vars.OUTPUT_QUEUE_NAME)
+    return None
 
 
 def writer(data):
     """Wraps the create_and_write def by sending it to a different thread"""
-    print(f"Writing output on separate thread : {data}")
     output_worker = threading.Thread(target=create_and_write, args=[data], name='Output-Writer-Thread')
     output_worker.start()
 
