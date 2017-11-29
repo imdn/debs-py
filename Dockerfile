@@ -7,7 +7,7 @@ WORKDIR /debs2017
 RUN apt-get update
 RUN apt-get install -y python3.6
 RUN apt-get install -y python3-pip
-RUN pip3 install --trusted-host pypi.python.org numpy scipy pika
+RUN pip3 install --trusted-host pypi.python.org numpy scipy rabbitpy
 RUN apt-get install -y openjdk-8-jre
 
 # Layer it for easier deployment on Docker
@@ -32,5 +32,5 @@ ENV HOBBIT_EXPERIMENT_URI_KEY="http://project-hobbit.eu/resources/debs2017/exper
 #ENV HOBBIT_EXPERIMENT_URI=http://example.com/exp1
 
 # Run app.py when the container launches
-#CMD [ "./run.sh" ]
-CMD ["java", "-cp", "debs-parrotbenchmark-system-1.0-SNAPSHOT.jar", "romromov.DebsParrotBenchmarkSystemRunner"]
+CMD [ "./run.sh" ]
+#CMD ["java", "-cp", "debs-parrotbenchmark-system-1.0-SNAPSHOT.jar", "romromov.DebsParrotBenchmarkSystemRunner"]
